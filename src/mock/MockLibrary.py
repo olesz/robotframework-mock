@@ -1,97 +1,80 @@
+from robot.api.deco import keyword
 from robot.libraries.BuiltIn import BuiltIn
-from robot.api.deco import keyword, not_keyword
-from unittest.mock import Mock
 from typing import Any, Callable
-import importlib
+from src.mock.lib.MockLibraryWorker import MockLibraryWorker
 
-class MockableLibrary:
-    """Hybrid library that wraps another library and adds mocking capabilities"""
+class MockLibrary(object):
+    """A Robot Framework library that enables unit testing of keywords by providing mocking capabilities.
+    
+    MockLibrary wraps another Robot Framework library and allows you to mock its keywords.
+    Uses a singleton pattern - one mock instance per library name/alias.
+    
+    Example:
+        | Library | DatabaseLibrary |
+        | Library | mock.MockLibrary | DatabaseLibrary | WITH NAME | MockDB |
+        | Suite Setup | MockDB.Activate Mock |
+    """
+    _instances = {}
+    _initialized = []
+    _mocks = {}
+    _original_methods = {}
+    _local_keywords = ['mock_keyword', 'reset_mocks', 'verify_keyword_called', 'activate_mock']
 
-    def __init__(self, library_name: str):
-        self._library_name = library_name
-        self._library_instance = None
-        self._mocks = {}
-        self._original_methods = {}
+    def __new__(cls, library_name_or_alias: str):
+        if library_name_or_alias not in cls._instances:
+            cls._instances[library_name_or_alias] = super().__new__(cls)
+        return cls._instances[library_name_or_alias]
 
-    @not_keyword
+    def __init__(self, library_name_or_alias: str):
+        if library_name_or_alias in self._initialized:
+            return
+        self._library_name_or_alias = library_name_or_alias
+        self._mock_library_instance = MockLibraryWorker(self._get_library_instance())
+        self._monkey_patch_library()
+        self._initialized.append(library_name_or_alias)
+
     def _get_library_instance(self):
-        if not self._library_instance:
-            # Import the actual library
-            if '.' in self._library_name:
-                module_path, class_name = self._library_name.rsplit('.', 1)
-                module = importlib.import_module(module_path)
-                lib_class = getattr(module, class_name)
-                self._library_instance = lib_class()
-            else:
-                # Try as module
-                self._library_instance = importlib.import_module(self._library_name)
-        return self._library_instance
+        lib = BuiltIn()._namespace._kw_store.libraries[self._library_name_or_alias].instance
+        if not lib:
+            raise RuntimeError(f"Library with name {self._library_name_or_alias} is not found in robot. Import it first!")
+        return lib
 
-    @not_keyword
-    def get_keyword_names(self):
-        """Export all keywords from wrapped library + mocking keywords"""
-        lib = self._get_library_instance()
-
-        # Get keywords from wrapped library
-        if hasattr(lib, 'get_keyword_names'):
-            wrapped_keywords = lib.get_keyword_names()
-        else:
-            wrapped_keywords = [name for name in dir(lib) if not name.startswith('_')]
-
-        # Add mocking keywords
-        return wrapped_keywords + ['mock_keyword', 'reset_mocks', 'verify_keyword_called']
-
-    @not_keyword
-    def __getattr__(self, name):
-        """Proxy all keyword calls to wrapped library or mock"""
-        if name in self._mocks:
-            return self._mocks[name]
-
-        lib = self._get_library_instance()
-        return getattr(lib, name)
+    def _monkey_patch_library(self):
+        BuiltIn()._namespace._kw_store.libraries[self._library_name_or_alias].instance = self._mock_library_instance
 
     @keyword
     def mock_keyword(self, keyword_name: str, return_value: Any = None, side_effect: Callable = None):
-        """Mock a keyword from the wrapped library"""
-        lib = self._get_library_instance()
-        method_name = keyword_name.lower().replace(' ', '_')
-
-        # Store original if not already mocked
-        if method_name not in self._original_methods:
-            self._original_methods[method_name] = getattr(lib, method_name)
-
-        # Create mock
-        mock = Mock(return_value=return_value, side_effect=side_effect)
-        self._mocks[method_name] = mock
-
-        return mock
-
-    @keyword
-    def mock_builtin_keyword(self, keyword_name: str, return_value: Any = None):
-        """Mock a BuiltIn keyword"""
-        builtin = BuiltIn()
-        original = builtin.run_keyword
-
-        def patched_run_keyword(name, *args):
-            if name.lower().replace(' ', '') == keyword_name.lower().replace(' ', ''):
-                return return_value
-            return original(name, *args)
-
-        builtin.run_keyword = patched_run_keyword
+        """Mock a keyword from the wrapped library.
+        
+        Args:
+            keyword_name: Name of the keyword to mock (supports both function names and @keyword decorator names)
+            return_value: Value to return when the keyword is called (optional)
+            side_effect: Callable to execute instead (optional)
+            
+        Example:
+            | MockDB.Mock Keyword | query | return_value=test_data |
+            | ${result}= | DatabaseLibrary.Query | SELECT * FROM users |
+        """
+        self._mock_library_instance.mock_keyword(keyword_name, return_value, side_effect)
 
     @keyword
     def reset_mocks(self):
-        """Reset all mocks to original methods"""
-        self._mocks.clear()
-        self._original_methods.clear()
+        """Reset all mocks to their original implementations.
+        
+        Example:
+            | MockDB.Reset Mocks |
+        """
+        self._mock_library_instance.reset_mocks()
 
     @keyword
     def verify_keyword_called(self, keyword_name: str, times: int = None):
-        """Verify a mocked keyword was called"""
-        method_name = keyword_name.lower().replace(' ', '_')
-        if method_name not in self._mocks:
-            raise AssertionError(f"Keyword '{keyword_name}' was not mocked")
-
-        mock = self._mocks[method_name]
-        if times is not None and mock.call_count != times:
-            raise AssertionError(f"Expected {times} calls, got {mock.call_count}")
+        """Verify that a mocked keyword was called.
+        
+        Args:
+            keyword_name: Name of the keyword to verify
+            times: Expected number of calls (optional, if omitted just verifies it was called)
+            
+        Example:
+            | MockDB.Verify Keyword Called | execute_sql | times=1 |
+        """
+        self._mock_library_instance.verify_keyword_called(keyword_name, times)
