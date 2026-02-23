@@ -13,11 +13,11 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/olesz/robotframework-mock",
+    license="Apache-2.0",
     package_dir={"": "src"},
     packages=find_packages(where="src"),
     classifiers=[
         "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: Apache Software License",
         "Operating System :: OS Independent",
         "Framework :: Robot Framework",
         "Framework :: Robot Framework :: Library",
