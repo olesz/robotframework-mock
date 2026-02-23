@@ -8,6 +8,11 @@ A Robot Framework library for mocking keywords in unit tests.
 pip install -r requirements.txt
 ```
 
+For development:
+```bash
+pip install -r requirements-dev.txt
+```
+
 ## Features
 
 - Mock keywords from any Robot Framework library
@@ -25,7 +30,7 @@ Import the library you want to mock, then create a MockLibrary instance for it:
 ```robot
 *** Settings ***
 Library    DatabaseLibrary
-Library    mock.MockLibrary    DatabaseLibrary    WITH NAME    MockDB
+Library    MockLibrary    DatabaseLibrary    WITH NAME    MockDB
 
 *** Test Cases ***
 Test With Mocked Keyword
@@ -50,17 +55,18 @@ Test Keyword Was Called
 
 ### Mock BuiltIn Keywords
 
-Mock Robot Framework's built-in keywords:
+Mock Robot Framework's built-in keywords using the same MockLibrary with "BuiltIn" as the library name:
 
 ```robot
 *** Settings ***
-Library    mock.MockBuiltin    WITH NAME    MockBin
+Library    MockLibrary    BuiltIn    WITH NAME    MockBin
 
 *** Test Cases ***
 Test BuiltIn Mock
     MockBin.Mock Keyword    Convert To Binary    return_value=test_data
     ${result}=    Convert To Binary    aaa
     Should Be Equal    ${result}    test_data
+    MockBin.Reset Mocks
 ```
 
 ### Mock Multiple Libraries
@@ -71,8 +77,8 @@ You can mock multiple libraries in the same test:
 *** Settings ***
 Library    DatabaseLibrary
 Library    RequestsLibrary
-Library    mock.MockLibrary    DatabaseLibrary    WITH NAME    MockDB
-Library    mock.MockLibrary    RequestsLibrary    WITH NAME    MockReq
+Library    MockLibrary    DatabaseLibrary    WITH NAME    MockDB
+Library    MockLibrary    RequestsLibrary    WITH NAME    MockReq
 
 *** Test Cases ***
 Test Multiple Mocks
@@ -127,9 +133,16 @@ MockLibrary dynamically replaces keyword implementations:
 1. Wraps the target library instance
 2. Resolves keyword names to function names (handles @keyword decorator)
 3. Stores original methods before mocking
-4. Replaces methods with mock implementations
+4. Replaces methods with mock implementations using Python's unittest.mock.Mock
 5. Returns mocked values or executes side effects
 6. Tracks call counts for verification
+7. Raises AttributeError if attempting to mock a non-existent keyword
+
+## Notes
+
+- The library uses `ROBOT_LIBRARY_SCOPE = 'GLOBAL'` to maintain state across test cases
+- Built on Python's unittest.mock.Mock for robust mocking capabilities
+- Supports any Robot Framework library, including BuiltIn
 
 ## License
 
