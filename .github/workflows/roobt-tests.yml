@@ -31,4 +31,4 @@ jobs:
     - name: Run tests
       run: |
         export PYTHONPATH="${PYTHONPATH}:${PWD}"
-        robot tests/keyword
+        robot test/keyword
