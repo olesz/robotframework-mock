@@ -9,13 +9,16 @@ class SampleLibrary:
     """Sample library for testing."""
 
     def simple_keyword(self):
+        """Return original value."""
         return "original"
 
     def another_keyword(self, arg):
+        """Return original value with arg."""
         return f"original_{arg}"
 
     @keyword(name="Custom Name")
     def custom_named_keyword(self):
+        """Return custom value."""
         return "custom"
 
 
@@ -78,7 +81,7 @@ class TestMockLibrary(unittest.TestCase):
 
     def test_mock_keyword_side_effect(self):
         """Test mocking a keyword with a side effect."""
-        def side_effect(*args, **kwargs):
+        def side_effect(*_args, **_kwargs):
             return "side_effect_result"
         self.mock_lib.mock_keyword("simple_keyword", side_effect=side_effect)
         result = self.sample_lib.simple_keyword()
