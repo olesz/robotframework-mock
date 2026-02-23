@@ -4,12 +4,24 @@ A Robot Framework library for mocking keywords in unit tests.
 
 ## Installation
 
+### From PyPI (once published)
+
 ```bash
-pip install -r requirements.txt
+pip install robotframework-mock
 ```
 
-For development:
+### From source
+
 ```bash
+git clone https://github.com/yourusername/robotframework-mock.git
+cd robotframework-mock
+pip install .
+```
+
+### For development
+
+```bash
+pip install -e .
 pip install -r requirements-dev.txt
 ```
 

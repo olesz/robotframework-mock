@@ -1,7 +1,7 @@
 *** Settings ***
 Library    DateTime
-Library    src.mock.mock_library.MockLibrary    DateTime    WITH NAME    MockDateTime
-Library    src.mock.mock_library.MockLibrary    BuiltIn    WITH NAME    MockBuiltin
+Library    MockLibrary    DateTime    WITH NAME    MockDateTime
+Library    MockLibrary    BuiltIn    WITH NAME    MockBuiltin
 
 Test Teardown    Teardown
 

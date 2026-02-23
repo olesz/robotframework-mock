@@ -2,7 +2,7 @@
 import unittest
 from unittest.mock import Mock, patch
 from robot.api.deco import keyword
-from src.mock.mock_library import MockLibrary, _get_library_instance
+from MockLibrary import MockLibrary, _get_library_instance
 
 
 class SampleLibrary:
@@ -25,7 +25,7 @@ class SampleLibrary:
 class TestGetLibraryInstance(unittest.TestCase):
     """Tests for _get_library_instance function."""
 
-    @patch('src.mock.mock_library.BuiltIn')
+    @patch('MockLibrary.BuiltIn')
     def test_get_existing_library(self, mock_builtin):
         """Test getting an existing library instance."""
         lib = Mock()
@@ -33,7 +33,7 @@ class TestGetLibraryInstance(unittest.TestCase):
         result = _get_library_instance("TestLib")
         self.assertEqual(result, lib)
 
-    @patch('src.mock.mock_library.BuiltIn')
+    @patch('MockLibrary.BuiltIn')
     def test_get_nonexistent_library(self, mock_builtin):
         """Test getting a non-existent library raises RuntimeError."""
         mock_builtin.return_value.get_library_instance.return_value = None
@@ -59,7 +59,7 @@ class TestMockLibrary(unittest.TestCase):
         mock_lib = MockLibrary("TestLib", lib=self.sample_lib)
         self.assertEqual(mock_lib._library_instance, self.sample_lib)  # pylint: disable=protected-access
 
-    @patch('src.mock.mock_library._get_library_instance')
+    @patch('MockLibrary._get_library_instance')
     def test_init_without_lib(self, mock_get_lib):
         """Test initialization without a library instance."""
         lib = Mock()

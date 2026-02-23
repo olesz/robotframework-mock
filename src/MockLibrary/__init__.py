@@ -5,6 +5,8 @@ from unittest.mock import Mock
 from robot.api.deco import keyword
 from robot.libraries.BuiltIn import BuiltIn
 
+__version__ = "1.0.0"
+
 
 def _get_library_instance(library_name_or_alias):
     lib = BuiltIn().get_library_instance(library_name_or_alias)
@@ -21,7 +23,7 @@ class MockLibrary():
     
     Example:
         | Library | DatabaseLibrary |
-        | Library | mock.MockLibrary | DatabaseLibrary | WITH NAME | MockDB |
+        | Library | MockLibrary | DatabaseLibrary | WITH NAME | MockDB |
         | MockDB.Mock Keyword | query | return_value=test_data |
         | ${result}= | DatabaseLibrary.Query | SELECT * FROM users |
         | Should Be Equal | ${result} | test_data |
