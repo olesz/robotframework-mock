@@ -1,6 +1,6 @@
 # robotframework-mock
 
-A Robot Framework library that enables unit testing of keywords by providing mocking capabilities for other keywords they depend on.
+A Robot Framework library for mocking keywords in unit tests.
 
 ## Installation
 
@@ -11,28 +11,24 @@ pip install -r requirements.txt
 ## Features
 
 - Mock keywords from any Robot Framework library
+- Mock Robot Framework's BuiltIn keywords
 - Support for keywords with custom names via @keyword decorator
 - Verify keyword calls and call counts
-- Singleton pattern - one mock instance per library
-- Explicit mock activation for controlled testing
+- Simple API with three main keywords
 
 ## Usage
 
-### Basic Mocking
+### Mock Library Keywords
 
-Import your library through `MockLibrary` and activate mocking:
+Import the library you want to mock, then create a MockLibrary instance for it:
 
 ```robot
 *** Settings ***
 Library    DatabaseLibrary
-Library    RequestsLibrary
 Library    mock.MockLibrary    DatabaseLibrary    WITH NAME    MockDB
-Library    mock.MockLibrary    RequestsLibrary    WITH NAME    MockReq
-
-Suite Setup    Run Keywords    MockDB.Activate Mock    AND    MockReq.Activate Mock
 
 *** Test Cases ***
-Test Keyword With Mocked Dependencies
+Test With Mocked Keyword
     MockDB.Mock Keyword    query    return_value=test_data
     ${result}=    DatabaseLibrary.Query    SELECT * FROM users
     Should Be Equal    ${result}    test_data
@@ -40,6 +36,8 @@ Test Keyword With Mocked Dependencies
 ```
 
 ### Verify Calls
+
+Verify that a keyword was called and optionally check the call count:
 
 ```robot
 *** Test Cases ***
@@ -50,52 +48,88 @@ Test Keyword Was Called
     MockDB.Reset Mocks
 ```
 
-### Mock Keywords with Custom Names
+### Mock BuiltIn Keywords
 
-Supports keywords decorated with @keyword("Custom Name"):
+Mock Robot Framework's built-in keywords:
 
 ```robot
+*** Settings ***
+Library    mock.MockBuiltin    WITH NAME    MockBin
+
 *** Test Cases ***
-Test HTTP Method Keywords
-    MockReq.Mock Keyword    POST    return_value=test_response
-    ${result}=    RequestsLibrary.POST    url    data
-    Should Be Equal    ${result}    test_response
+Test BuiltIn Mock
+    MockBin.Mock Keyword    Convert To Binary    return_value=test_data
+    ${result}=    Convert To Binary    aaa
+    Should Be Equal    ${result}    test_data
+```
+
+### Mock Multiple Libraries
+
+You can mock multiple libraries in the same test:
+
+```robot
+*** Settings ***
+Library    DatabaseLibrary
+Library    RequestsLibrary
+Library    mock.MockLibrary    DatabaseLibrary    WITH NAME    MockDB
+Library    mock.MockLibrary    RequestsLibrary    WITH NAME    MockReq
+
+*** Test Cases ***
+Test Multiple Mocks
+    MockDB.Mock Keyword    query    return_value=user_data
+    MockReq.Mock Keyword    get    return_value=api_response
+    # Your test code here
+    MockDB.Reset Mocks
+    MockReq.Reset Mocks
+```
+
+## Keywords
+
+### Mock Keyword
+
+Mock a keyword with a return value or side effect.
+
+**Arguments:**
+- `keyword_name` - Name of the keyword to mock
+- `return_value` - Value to return when called (optional)
+- `side_effect` - Callable to execute instead (optional)
+
+**Example:**
+```robot
+MockDB.Mock Keyword    query    return_value=test_data
+```
+
+### Reset Mocks
+
+Restore all mocked keywords to their original implementations.
+
+**Example:**
+```robot
+MockDB.Reset Mocks
+```
+
+### Verify Keyword Called
+
+Verify a keyword was called, optionally checking call count.
+
+**Arguments:**
+- `keyword_name` - Name of the keyword to verify
+- `times` - Expected number of calls (optional)
+
+**Example:**
+```robot
+MockDB.Verify Keyword Called    execute_sql    times=1
 ```
 
 ## How It Works
 
-`MockLibrary` uses a worker pattern:
-1. Creates a singleton instance per library name/alias
-2. Wraps the target library with MockLibraryWorker
-3. On `Activate Mock`, replaces the library instance in Robot's namespace
-4. Intercepts keyword calls via __getattr__ proxy
-5. Resolves keyword names to function names (handles @keyword decorator)
-6. Returns mocked values or delegates to original implementation
-
-## API
-
-### Activate Mock
-Activates mocking by replacing the library instance in Robot's namespace.
-
-**Must be called before mocking keywords (typically in Suite Setup).**
-
-### Mock Keyword
-Mock a keyword from the wrapped library.
-
-**Arguments:**
-- `keyword_name`: Name of the keyword to mock (supports both function names and @keyword decorator names)
-- `return_value`: Value to return when the keyword is called (optional)
-- `side_effect`: Callable to execute instead (optional)
-
-### Reset Mocks
-Reset all mocks to their original implementations.
-
-### Verify Keyword Called
-Verify that a mocked keyword was called.
-
-**Arguments:**
-- `keyword_name`: Name of the keyword to verify
-- `times`: Expected number of calls (optional, if omitted just verifies it was called)
+MockLibrary dynamically replaces keyword implementations:
+1. Wraps the target library instance
+2. Resolves keyword names to function names (handles @keyword decorator)
+3. Stores original methods before mocking
+4. Replaces methods with mock implementations
+5. Returns mocked values or executes side effects
+6. Tracks call counts for verification
 
 ## License
 

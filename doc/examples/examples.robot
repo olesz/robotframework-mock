@@ -16,7 +16,7 @@ Test Library Mock
     Should Be Equal    ${result}    test_data_2
 
 Test BuiltIn Mock
-     Bin.Mock Builtin Keyword    Convert To Binary    return_value=test_data_3
+    Bin.Mock Keyword    Convert To Binary    return_value=test_data_3
 
     ${result}=    Convert To Binary    aaa
     Should Be Equal    ${result}    test_data_3
