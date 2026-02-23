@@ -1,18 +1,22 @@
+"""Mock library for Robot Framework keyword mocking in unit tests."""
 import inspect
-from robot.api.deco import keyword
-from robot.libraries.BuiltIn import BuiltIn
 from typing import Any, Callable
 from unittest.mock import Mock
+from robot.api.deco import keyword
+from robot.libraries.BuiltIn import BuiltIn
 
 
 def _get_library_instance(library_name_or_alias):
     lib = BuiltIn().get_library_instance(library_name_or_alias)
     if not lib:
-        raise RuntimeError(f"Library with name {library_name_or_alias} is not found in robot. Import it first!")
+        raise RuntimeError(
+            f"Library with name {library_name_or_alias} is not found "
+            f"in robot. Import it first!"
+        )
     return lib
 
 
-class MockLibrary(object):
+class MockLibrary():
     """Mock keywords from any Robot Framework library for unit testing.
     
     Example:
@@ -34,7 +38,10 @@ class MockLibrary(object):
         else:
             self._library_instance = _get_library_instance(library_name_or_alias)
 
-    def _mock_keyword_internal(self, lib: Any, keyword_name: str, return_value: Any = None, side_effect: Callable = None):
+    def _mock_keyword_internal(
+        self, lib: Any, keyword_name: str,
+        return_value: Any = None, side_effect: Callable = None
+    ):
         method_name = keyword_name.lower().replace(' ', '_')
 
         if method_name not in self._original_methods:
@@ -42,8 +49,11 @@ class MockLibrary(object):
             try:
                 original_method = getattr(lib, method_name)
             except AttributeError:
-                for name, method in inspect.getmembers(lib, inspect.ismethod):
-                    if hasattr(method, 'robot_name') and method.robot_name.lower() == keyword_name:
+                for name, method in inspect.getmembers(
+                    lib, inspect.ismethod
+                ):
+                    if (hasattr(method, 'robot_name') and
+                            method.robot_name.lower() == keyword_name):
                         original_method = getattr(lib, name)
                         method_name = name
                         break
@@ -55,12 +65,18 @@ class MockLibrary(object):
         self._mocks[method_name] = mock
 
         owner_class = self._original_methods[method_name].__self__.__class__
-        setattr(owner_class, method_name, lambda self, *args, **kwargs: mock(*args, **kwargs))
+        setattr(
+            owner_class, method_name,
+            lambda self, *args, **kwargs: mock(*args, **kwargs)
+        )
 
         return mock
 
     @keyword
-    def mock_keyword(self, keyword_name: str, return_value: Any = None, side_effect: Callable = None):
+    def mock_keyword(
+        self, keyword_name: str,
+        return_value: Any = None, side_effect: Callable = None
+    ):
         """Mock a keyword from the wrapped library.
         
         Example:
@@ -68,11 +84,11 @@ class MockLibrary(object):
         """
         return self._mock_keyword_internal(self._library_instance, keyword_name, return_value, side_effect)
 
-    def _reset_mocks_internal(self, lib: Any):
+    def _reset_mocks_internal(self):
         for method_name, original_method in self._original_methods.items():
             owner_class = original_method.__self__.__class__
             setattr(owner_class, method_name, original_method)
-        
+
         self._mocks.clear()
         self._original_methods.clear()
 

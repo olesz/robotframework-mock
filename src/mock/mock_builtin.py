@@ -1,3 +1,4 @@
+"""Mock implementations of built-in functions for testing."""
 from MockLibrary import MockLibrary
 from robot.libraries.BuiltIn import BuiltIn
 
