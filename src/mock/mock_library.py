@@ -27,12 +27,12 @@ class MockLibrary():
         | Should Be Equal | ${result} | test_data |
         | MockDB.Reset Mocks |
     """
-
-    _library_instance = None
-    _original_methods = {}
-    _mocks = {}
+    
+    ROBOT_LIBRARY_SCOPE = 'GLOBAL'
 
     def __init__(self, library_name_or_alias: str, lib: Any = None):
+        self._original_methods = {}
+        self._mocks = {}
         if lib:
             self._library_instance = lib
         else:
@@ -71,11 +71,18 @@ class MockLibrary():
         mock = Mock(return_value=return_value, side_effect=side_effect)
         self._mocks[method_name] = mock
 
-        owner_class = self._original_methods[method_name].__self__.__class__
-        setattr(
-            owner_class, method_name,
-            lambda self, *args, **kwargs: mock(*args, **kwargs)
-        )
+        try:
+            owner_class = self._original_methods[method_name].__self__.__class__
+            setattr(
+                owner_class, method_name,
+                lambda *args, **kwargs: mock(*args, **kwargs)
+            )
+        except Exception:
+            setattr(
+                lib, method_name,
+                lambda *args, **kwargs: mock(*args, **kwargs)
+            )
+
 
         return mock
 
@@ -87,8 +94,11 @@ class MockLibrary():
             | MockDB.Reset Mocks |
         """
         for method_name, original_method in self._original_methods.items():
-            owner_class = original_method.__self__.__class__
-            setattr(owner_class, method_name, original_method)
+            try:
+                owner_class = original_method.__self__.__class__
+                setattr(owner_class, method_name, original_method)
+            except Exception:
+                setattr(self._library_instance, method_name, original_method)
 
         self._mocks.clear()
         self._original_methods.clear()
