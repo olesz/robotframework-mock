@@ -27,7 +27,7 @@ class MockLibrary():
         | Should Be Equal | ${result} | test_data |
         | MockDB.Reset Mocks |
     """
-    
+
     ROBOT_LIBRARY_SCOPE = 'GLOBAL'
 
     def __init__(self, library_name_or_alias: str, lib: Any = None):
@@ -73,15 +73,9 @@ class MockLibrary():
 
         try:
             owner_class = self._original_methods[method_name].__self__.__class__
-            setattr(
-                owner_class, method_name,
-                lambda *args, **kwargs: mock(*args, **kwargs)
-            )
-        except Exception:
-            setattr(
-                lib, method_name,
-                lambda *args, **kwargs: mock(*args, **kwargs)
-            )
+            setattr(owner_class, method_name, mock)
+        except AttributeError:
+            setattr(lib, method_name, mock)
 
 
         return mock
@@ -97,7 +91,7 @@ class MockLibrary():
             try:
                 owner_class = original_method.__self__.__class__
                 setattr(owner_class, method_name, original_method)
-            except Exception:
+            except AttributeError:
                 setattr(self._library_instance, method_name, original_method)
 
         self._mocks.clear()
