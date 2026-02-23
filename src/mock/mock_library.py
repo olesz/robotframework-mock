@@ -38,10 +38,17 @@ class MockLibrary():
         else:
             self._library_instance = _get_library_instance(library_name_or_alias)
 
-    def _mock_keyword_internal(
-        self, lib: Any, keyword_name: str,
+    @keyword
+    def mock_keyword(
+        self, keyword_name: str,
         return_value: Any = None, side_effect: Callable = None
     ):
+        """Mock a keyword from the wrapped library.
+        
+        Example:
+            | MockDB.Mock Keyword | query | return_value=test_data |
+        """
+        lib = self._library_instance
         method_name = keyword_name.lower().replace(' ', '_')
 
         if method_name not in self._original_methods:
@@ -73,33 +80,18 @@ class MockLibrary():
         return mock
 
     @keyword
-    def mock_keyword(
-        self, keyword_name: str,
-        return_value: Any = None, side_effect: Callable = None
-    ):
-        """Mock a keyword from the wrapped library.
-        
-        Example:
-            | MockDB.Mock Keyword | query | return_value=test_data |
-        """
-        return self._mock_keyword_internal(self._library_instance, keyword_name, return_value, side_effect)
-
-    def _reset_mocks_internal(self):
-        for method_name, original_method in self._original_methods.items():
-            owner_class = original_method.__self__.__class__
-            setattr(owner_class, method_name, original_method)
-
-        self._mocks.clear()
-        self._original_methods.clear()
-
-    @keyword
     def reset_mocks(self):
         """Reset all mocks to their original implementations.
         
         Example:
             | MockDB.Reset Mocks |
         """
-        self._reset_mocks_internal(self._library_instance)
+        for method_name, original_method in self._original_methods.items():
+            owner_class = original_method.__self__.__class__
+            setattr(owner_class, method_name, original_method)
+
+        self._mocks.clear()
+        self._original_methods.clear()
 
     @keyword
     def verify_keyword_called(self, keyword_name: str, times: int = None):

@@ -1,9 +1,9 @@
 """Mock implementations of built-in functions for testing."""
-from MockLibrary import MockLibrary
+from mock_library import MockLibrary
 from robot.libraries.BuiltIn import BuiltIn
 
 
-class MockBuiltin(MockLibrary):
+class MockBuiltin(MockLibrary):  # pylint: disable=too-few-public-methods
     """Mock Robot Framework's BuiltIn library keywords.
     
     Example:
