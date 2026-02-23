@@ -1,6 +1,5 @@
 *** Settings ***
 Library    DateTime
-Library    RequestsLibrary
 Library    src.mock.mock_library.MockLibrary    DateTime    WITH NAME    MockDateTime
 Library    src.mock.mock_library.MockLibrary    BuiltIn    WITH NAME    MockBuiltin
 
