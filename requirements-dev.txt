@@ -1,0 +1,3 @@
+robotframework>=6.0
+pylint
+pytest
