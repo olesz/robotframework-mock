@@ -1,4 +1,5 @@
 """Mock library for Robot Framework keyword mocking in unit tests."""
+# pylint: disable=invalid-name
 import inspect
 from typing import Any, Callable
 from unittest.mock import Mock
