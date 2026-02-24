@@ -11,12 +11,23 @@ Test Mock Simple Module
 
     ${result}=    Convert Time    2024-01-01 12:00:00
     Should Be Equal    ${result}    test_data
+    MockDateTime.Verify Keyword Called    Convert Time    1
+
+Test Mock Simple Module Multiple Values
+    ${return_values}=    Evaluate    ['test_data', 'test_data_two']
+    MockDateTime.Mock Keyword    Convert Time    return_value=${return_values}
+
+    ${result}    ${result_2}=    Convert Time    2024-01-01 12:00:00
+    Should Be Equal    ${result}    test_data
+    Should Be Equal    ${result_2}    test_data_two
+    MockDateTime.Verify Keyword Called    Convert Time    1
 
 Test Mock Simple Class
     MockBuiltin.Mock Keyword    Convert To Binary    return_value=test_data_2
 
     ${result}=    Convert To Binary    aaa
     Should Be Equal    ${result}    test_data_2
+    MockBuiltin.Verify Keyword Called    Convert To Binary    1
 
 Test Mock With Side Effect
     ${side_effect}=    Evaluate    lambda time, *args, **kwargs: 'morning' if '08:00' in time else 'evening'
@@ -26,6 +37,7 @@ Test Mock With Side Effect
     ${result2}=    Convert Time    2024-01-01 20:00:00
     Should Be Equal    ${result1}    morning
     Should Be Equal    ${result2}    evening
+    MockDateTime.Verify Keyword Called    Convert Time    2
 
 Test Mock Reset
     MockDateTime.Mock Keyword    Convert Time    return_value=test_data
@@ -35,6 +47,8 @@ Test Mock Reset
     Should Be Equal    ${result}    test_data
     ${result}=    Convert To Binary    aaa
     Should Be Equal    ${result}    test_data_2
+    MockDateTime.Verify Keyword Called    Convert Time    1
+    MockBuiltin.Verify Keyword Called    Convert To Binary    1
 
     MockDateTime.Reset Mocks
 
@@ -42,6 +56,7 @@ Test Mock Reset
     Should Be True    ${result} == 43200.0
     ${result}=    Convert To Binary    aaa
     Should Be Equal    ${result}    test_data_2
+    MockBuiltin.Verify Keyword Called    Convert To Binary    2
 
 *** Keywords ***
 Teardown
