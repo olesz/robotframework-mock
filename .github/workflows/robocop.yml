@@ -31,4 +31,4 @@ jobs:
 
       - name: Run Robocop
         run: |
-          robocop --include W --output robocop_report.html **/*.robot
+          robocop check **/*.robot --include W --output robocop_report.html
