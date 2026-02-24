@@ -28,6 +28,7 @@ pip install -r requirements-dev.txt
 ## Features
 
 - Mock keywords from any Robot Framework library
+- Mock keywords from Robot Framework resource files
 - Mock Robot Framework's BuiltIn keywords
 - Support for keywords with custom names via @keyword decorator
 - Verify keyword calls and call counts
@@ -101,6 +102,23 @@ Test Multiple Mocks
     MockReq.Reset Mocks
 ```
 
+### Mock Resource Keywords
+
+Mock keywords from Robot Framework resource files:
+
+```robot
+*** Settings ***
+Resource    my_resource.robot
+Library     MockResource    my_resource.robot    WITH NAME    MockRes
+
+*** Test Cases ***
+Test Resource Keyword Mock
+    MockRes.Mock Keyword    My Custom Keyword    return_value=mocked_value
+    ${result}=    My Custom Keyword
+    Should Be Equal    ${result}    mocked_value
+    MockRes.Reset Mocks
+```
+
 ## Keywords
 
 ### Mock Keyword
@@ -141,6 +159,8 @@ MockDB.Verify Keyword Called    execute_sql    times=1
 
 ## How It Works
 
+### MockLibrary
+
 MockLibrary dynamically replaces keyword implementations:
 1. Wraps the target library instance
 2. Resolves keyword names to function names (handles @keyword decorator)
@@ -150,11 +170,21 @@ MockLibrary dynamically replaces keyword implementations:
 6. Tracks call counts for verification
 7. Raises AttributeError if attempting to mock a non-existent keyword
 
+### MockResource
+
+MockResource patches Robot Framework's keyword execution:
+1. Patches the Namespace.get_runner method
+2. Intercepts keyword execution for the specified resource file
+3. Replaces keyword body with Return statement containing mocked value
+4. Tracks call counts for verification
+5. Restores original keyword body on reset
+
 ## Notes
 
-- The library uses `ROBOT_LIBRARY_SCOPE = 'GLOBAL'` to maintain state across test cases
+- Both libraries use `ROBOT_LIBRARY_SCOPE = 'GLOBAL'` to maintain state across test cases
 - Built on Python's unittest.mock.Mock for robust mocking capabilities
-- Supports any Robot Framework library, including BuiltIn
+- MockLibrary supports any Robot Framework library, including BuiltIn
+- MockResource works with resource files by patching the keyword execution pipeline
 
 ## License
 
