@@ -35,5 +35,5 @@ jobs:
           if [ -z "$ROBOT_FILES" ]; then
             echo "No .robot files found. Skipping Robocop."
           else
-            robocop check $ROBOT_FILES --severity warning,error --exit-on-violation
+            robocop check $ROBOT_FILES
           fi
