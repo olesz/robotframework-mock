@@ -1,4 +1,4 @@
 robotframework>=7.0
 pylint
 pytest
-robocop
+robotframework-robocop
