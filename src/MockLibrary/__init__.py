@@ -1,6 +1,8 @@
 """Mock library for Robot Framework keyword mocking in unit tests."""
 # pylint: disable=invalid-name
+import importlib.util
 import inspect
+import os
 from typing import Any, Callable
 from unittest.mock import Mock
 from robot.api.deco import keyword
@@ -28,6 +30,49 @@ def _get_library_instance(library_name_or_alias):
     return lib
 
 
+def _resolve_original_method(lib, method_name, keyword_name):
+    # Try direct attribute lookup first
+    try:
+        return getattr(lib, method_name), method_name
+    except AttributeError:
+        # If not found, search for methods with @keyword decorator custom names
+        for name, method in inspect.getmembers(
+                lib, inspect.ismethod
+        ):
+            if (hasattr(method, 'robot_name') and
+                    method.robot_name.lower() == keyword_name):
+                return getattr(lib, name), name
+
+    return None, method_name
+
+
+def _load_custom_resolver(resolver_path: str):
+    """Load a custom resolver from a Python file and instantiate it.
+
+    Args:
+        resolver_path: Relative path to a Python file containing a resolver class
+
+    Returns:
+        An instance of the resolver class found in the file
+
+    Raises:
+        FileNotFoundError: If the resolver file does not exist
+        AttributeError: If no class with resolve_original_method is found
+    """
+    abs_path = os.path.abspath(resolver_path)
+    if not os.path.isfile(abs_path):
+        raise FileNotFoundError(f"Custom resolver file not found: {abs_path}")
+    spec = importlib.util.spec_from_file_location("custom_resolver", abs_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    for _, obj in inspect.getmembers(module, inspect.isclass):
+        if hasattr(obj, 'resolve_original_method'):
+            return obj()
+    raise AttributeError(
+        f"No class with 'resolve_original_method' found in {abs_path}"
+    )
+
+
 class MockLibrary():
     """Mock keywords from any Robot Framework library for unit testing.
     
@@ -42,15 +87,22 @@ class MockLibrary():
 
     ROBOT_LIBRARY_SCOPE = 'GLOBAL'
 
-    def __init__(self, library_name_or_alias: str):
+    def __init__(self, library_name_or_alias: str, custom_resolver_path: str = None):
         """Initialize MockLibrary with a target library to mock.
         
         Args:
             library_name_or_alias: Name or alias of the library to mock
+            custom_resolver_path: Optional relative path to a Python file
+                containing a custom resolver class with a
+                resolve_original_method(lib, method_name, keyword_name) method
         """
         self._original_methods = {}
         self._mocks = {}
         self._library_instance = _get_library_instance(library_name_or_alias)
+        self._custom_resolver = (
+            _load_custom_resolver(custom_resolver_path)
+            if custom_resolver_path else None
+        )
 
     @keyword
     def mock_keyword(
@@ -73,20 +125,13 @@ class MockLibrary():
 
         # Only store original method once per keyword
         if method_name not in self._original_methods:
-            original_method = None
-            # Try direct attribute lookup first
-            try:
-                original_method = getattr(lib, method_name)
-            except AttributeError:
-                # If not found, search for methods with @keyword decorator custom names
-                for name, method in inspect.getmembers(
-                    lib, inspect.ismethod
-                ):
-                    if (hasattr(method, 'robot_name') and
-                            method.robot_name.lower() == keyword_name):
-                        original_method = getattr(lib, name)
-                        method_name = name
-                        break
+            if self._custom_resolver:
+                original_method, method_name = self._custom_resolver.resolve_original_method(
+                    lib, method_name, keyword_name, side_effect
+                )
+            else:
+                original_method, method_name = _resolve_original_method(lib, method_name, keyword_name)
+
             # Raise error if keyword doesn't exist
             if not original_method:
                 raise AttributeError(f"Keyword '{keyword_name}' not found in {lib}")

@@ -1,8 +1,9 @@
 """Unit tests for MockLibrary."""
+import os
 import unittest
 from unittest.mock import Mock, patch
 from robot.api.deco import keyword
-from MockLibrary import MockLibrary, _get_library_instance
+from MockLibrary import MockLibrary, _get_library_instance, _load_custom_resolver
 
 
 class SampleLibrary:
@@ -160,6 +161,88 @@ class TestMockLibrary(unittest.TestCase):
         self.mock_lib.mock_keyword("simple keyword", return_value="mocked")
         self.sample_lib.simple_keyword()
         self.mock_lib.verify_keyword_called("simple keyword", times=1)
+
+
+class TestLoadCustomResolver(unittest.TestCase):
+    """Tests for _load_custom_resolver function."""
+
+    def test_load_valid_resolver(self):
+        """Test loading a valid custom resolver file."""
+        resolver_path = os.path.join(os.path.dirname(__file__), 'sample_custom_resolver.py')
+        resolver = _load_custom_resolver(resolver_path)
+        self.assertTrue(hasattr(resolver, 'resolve_original_method'))
+
+    def test_load_nonexistent_file(self):
+        """Test loading a non-existent file raises FileNotFoundError."""
+        with self.assertRaises(FileNotFoundError):
+            _load_custom_resolver('nonexistent_resolver.py')
+
+    def test_load_file_without_resolver_class(self):
+        """Test loading a file with no resolver class raises AttributeError."""
+        # __init__.py has no class with resolve_original_method
+        init_path = os.path.join(os.path.dirname(__file__), '__init__.py')
+        # Create a temp file with no resolver class
+        with open(init_path, 'w') as f:
+            f.write('x = 1\n')
+        try:
+            with self.assertRaises(AttributeError):
+                _load_custom_resolver(init_path)
+        finally:
+            os.remove(init_path)
+
+
+class TestMockLibraryWithCustomResolver(unittest.TestCase):
+    """Tests for MockLibrary with a custom resolver."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.sample_lib = SampleLibrary()
+        self.resolver_path = os.path.join(os.path.dirname(__file__), 'sample_custom_resolver.py')
+        self.patcher = patch('MockLibrary._get_library_instance', return_value=self.sample_lib)
+        self.patcher.start()
+        self.mock_lib = MockLibrary("TestLib", custom_resolver_path=self.resolver_path)
+
+    def tearDown(self):
+        """Clean up after tests."""
+        self.mock_lib.reset_mocks()
+        self.patcher.stop()
+
+    def test_custom_resolver_is_used(self):
+        """Test that the custom resolver is used for keyword resolution."""
+        self.assertIsNotNone(self.mock_lib._custom_resolver)  # pylint: disable=protected-access
+
+    def test_mock_keyword_with_custom_resolver(self):
+        """Test mocking a keyword using a custom resolver."""
+        self.mock_lib.mock_keyword("simple_keyword", return_value="custom_mocked")
+        result = self.sample_lib.simple_keyword()
+        self.assertEqual(result, "custom_mocked")
+
+    def test_mock_keyword_not_found_with_custom_resolver(self):
+        """Test that non-existent keyword raises AttributeError with custom resolver."""
+        with self.assertRaises(AttributeError):
+            self.mock_lib.mock_keyword("nonexistent_keyword")
+
+    def test_reset_mocks_with_custom_resolver(self):
+        """Test resetting mocks restores original behavior with custom resolver."""
+        self.mock_lib.mock_keyword("simple_keyword", return_value="mocked")
+        self.assertEqual(self.sample_lib.simple_keyword(), "mocked")
+        self.mock_lib.reset_mocks()
+        self.assertEqual(self.sample_lib.simple_keyword(), "original")
+
+    def test_side_effect_passed_to_custom_resolver(self):
+        """Test that side_effect is passed to the custom resolver."""
+        resolver = self.mock_lib._custom_resolver  # pylint: disable=protected-access
+        original_resolve = resolver.resolve_original_method
+        calls = []
+
+        def tracking_resolve(lib, method_name, keyword_name, side_effect):
+            calls.append(side_effect)
+            return original_resolve(lib, method_name, keyword_name, side_effect)
+
+        resolver.resolve_original_method = tracking_resolve
+        my_side_effect = lambda: "side"
+        self.mock_lib.mock_keyword("simple_keyword", side_effect=my_side_effect)
+        self.assertIs(calls[0], my_side_effect)
 
 
 if __name__ == '__main__':

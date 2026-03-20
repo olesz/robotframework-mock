@@ -4,6 +4,8 @@ Documentation    Test suite for MockLibrary functionality
 Library    DateTime
 Library    MockLibrary    DateTime    AS    MockDateTime
 Library    MockLibrary    BuiltIn    AS    MockBuiltin
+Library    resources/DynamicLibrary.py
+Library    MockLibrary    DynamicLibrary    ${CURDIR}/resources/dynamic_library_resolver.py    AS    MockDynamic
 
 Test Teardown    Teardown
 
@@ -53,6 +55,13 @@ Test Mock Reset
     MockDateTime.Reset Mocks
     Verify Library Original Behavior
 
+Test Mock Dynamic Library With Custom Resolver
+    [Documentation]    Test mocking a dynamic library keyword using a custom resolver
+    MockDynamic.Mock Keyword    dynamic_greeting    return_value=mocked_greeting
+    ${result}=    Dynamic Greeting    world
+    Should Be Equal    ${result}    mocked_greeting
+    MockDynamic.Verify Keyword Called    dynamic_greeting    1
+
 
 *** Keywords ***
 Setup Library Mocks
@@ -81,3 +90,4 @@ Teardown
     [Documentation]    Reset all mocks after each test
     MockDateTime.Reset Mocks
     MockBuiltin.Reset Mocks
+    MockDynamic.Reset Mocks
