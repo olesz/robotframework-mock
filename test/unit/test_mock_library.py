@@ -182,7 +182,7 @@ class TestLoadCustomResolver(unittest.TestCase):
         # __init__.py has no class with resolve_original_method
         init_path = os.path.join(os.path.dirname(__file__), '__init__.py')
         # Create a temp file with no resolver class
-        with open(init_path, 'w') as f:
+        with open(init_path, 'w', encoding='utf-8') as f:
             f.write('x = 1\n')
         try:
             with self.assertRaises(AttributeError):
@@ -240,7 +240,9 @@ class TestMockLibraryWithCustomResolver(unittest.TestCase):
             return original_resolve(lib, method_name, keyword_name, side_effect)
 
         resolver.resolve_original_method = tracking_resolve
-        my_side_effect = lambda: "side"
+        def my_side_effect():
+            return "side"
+
         self.mock_lib.mock_keyword("simple_keyword", side_effect=my_side_effect)
         self.assertIs(calls[0], my_side_effect)
 

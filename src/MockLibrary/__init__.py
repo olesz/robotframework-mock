@@ -126,11 +126,15 @@ class MockLibrary():
         # Only store original method once per keyword
         if method_name not in self._original_methods:
             if self._custom_resolver:
-                original_method, method_name = self._custom_resolver.resolve_original_method(
-                    lib, method_name, keyword_name, side_effect
+                original_method, method_name = (
+                    self._custom_resolver.resolve_original_method(
+                        lib, method_name, keyword_name, side_effect
+                    )
                 )
             else:
-                original_method, method_name = _resolve_original_method(lib, method_name, keyword_name)
+                original_method, method_name = _resolve_original_method(
+                    lib, method_name, keyword_name
+                )
 
             # Raise error if keyword doesn't exist
             if not original_method:

@@ -2,9 +2,11 @@
 from functools import wraps
 
 
-class DynamicLibraryResolver:
+class DynamicLibraryResolver:  # pylint: disable=too-few-public-methods
+    """Resolves keywords for dynamic Robot Framework libraries."""
 
-    def resolve_original_method(self, lib, method_name, keyword_name, side_effect):
+    def resolve_original_method(self, lib, method_name, _keyword_name, _side_effect):
+        """Resolve a keyword by checking the dynamic library's keyword names."""
         if not hasattr(lib, 'get_keyword_names'):
             return None, method_name
         kw_names = lib.get_keyword_names()
