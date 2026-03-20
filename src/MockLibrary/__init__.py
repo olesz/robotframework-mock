@@ -42,22 +42,15 @@ class MockLibrary():
 
     ROBOT_LIBRARY_SCOPE = 'GLOBAL'
 
-    def __init__(self, library_name_or_alias: str, lib: Any = None):
+    def __init__(self, library_name_or_alias: str):
         """Initialize MockLibrary with a target library to mock.
         
         Args:
             library_name_or_alias: Name or alias of the library to mock
-            lib: Optional library instance (for testing purposes)
         """
-        # Store original method references before mocking
         self._original_methods = {}
-        # Store Mock objects for verification
         self._mocks = {}
-        # Get or set the library instance to mock
-        if lib:
-            self._library_instance = lib
-        else:
-            self._library_instance = _get_library_instance(library_name_or_alias)
+        self._library_instance = _get_library_instance(library_name_or_alias)
 
     @keyword
     def mock_keyword(

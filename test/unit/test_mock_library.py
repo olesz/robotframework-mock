@@ -48,24 +48,14 @@ class TestMockLibrary(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         self.sample_lib = SampleLibrary()
-        self.mock_lib = MockLibrary("TestLib", lib=self.sample_lib)
+        self.patcher = patch('MockLibrary._get_library_instance', return_value=self.sample_lib)
+        self.patcher.start()
+        self.mock_lib = MockLibrary("TestLib")
 
     def tearDown(self):
         """Clean up after tests."""
         self.mock_lib.reset_mocks()
-
-    def test_init_with_lib(self):
-        """Test initialization with a library instance."""
-        mock_lib = MockLibrary("TestLib", lib=self.sample_lib)
-        self.assertEqual(mock_lib._library_instance, self.sample_lib)  # pylint: disable=protected-access
-
-    @patch('MockLibrary._get_library_instance')
-    def test_init_without_lib(self, mock_get_lib):
-        """Test initialization without a library instance."""
-        lib = Mock()
-        mock_get_lib.return_value = lib
-        mock_lib = MockLibrary("TestLib")
-        self.assertEqual(mock_lib._library_instance, lib)  # pylint: disable=protected-access
+        self.patcher.stop()
 
     def test_mock_keyword_simple(self):
         """Test mocking a simple keyword."""
