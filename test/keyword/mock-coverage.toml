@@ -1,0 +1,26 @@
+# Sample coverage configuration for MockCoverage.
+#
+# Paths are relative to THIS file's directory, so the config works regardless
+# of which directory robot is invoked from.
+#
+# Run with:
+#   robot --listener MockCoverage:config=test/keyword/mock-coverage.toml \
+#         test/keyword/coverage-tests.robot
+
+[coverage]
+# Global minimum coverage percentage across all discovered resources.
+fail_under = 75.0
+
+# Directories scanned recursively for resource files. Any resource file added
+# under these paths is measured automatically.
+paths = ["resources"]
+
+# File patterns to collect within those paths (default: ["*.resource"]).
+patterns = ["*.resource"]
+
+# Exclude patterns, matched against the reported (relative) path.
+exclude = ["*resource-test*"]
+
+# Optional per-file threshold overrides for individual resources.
+[coverage.resources."resources/coverage-demo.resource"]
+fail_under = 75.0

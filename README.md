@@ -32,6 +32,7 @@ pip install -r requirements-dev.txt
 - Mock Robot Framework's BuiltIn keywords
 - Support for keywords with custom names via @keyword decorator
 - Verify keyword calls and call counts
+- Measure resource-file keyword coverage with configurable thresholds
 - Simple API with three main keywords
 
 ## Usage
@@ -119,6 +120,160 @@ Test Resource Keyword Mock
     MockRes.Reset Mocks
 ```
 
+## Keyword Coverage Measurement
+
+`MockCoverage` measures how many of the keywords **defined** in your resource
+files were actually **executed** by your tests — the Robot Framework analogue of
+JaCoCo or coverage.py. Coverage requirements live in a TOML config file, and the
+run fails if coverage falls below the configured threshold, so it can gate a CI
+build.
+
+Resource files are found by **recursively scanning directories** you list, so a
+newly added resource file is measured automatically and cannot silently escape
+the gate.
+
+### Coverage model
+
+Coverage uses the same aggregate model as standard coverage tools: a keyword
+counts as covered if it is executed **at any point during the run**, regardless
+of which test triggered it. This includes keywords reached indirectly through
+other keywords.
+
+A discovered resource file whose keywords are never executed reports
+**0% coverage** by design.
+
+Keyword names are read from the resource files themselves; the config only
+selects *which files* participate.
+
+### Configuration
+
+Create a config file (e.g. `mock-coverage.toml`):
+
+```toml
+[coverage]
+# Global minimum coverage percentage across all discovered resources
+fail_under = 80.0
+
+# Directories scanned recursively for resource files
+paths = [
+    "tests/core-common/resources",
+    "tests/core-ui/resources",
+]
+
+# Which files to collect within those paths (default: ["*.resource"])
+patterns = ["*.resource"]
+
+# Optional exclusions, matched against the reported (relative) path
+exclude = ["*deprecated*", "*/experimental/*"]
+
+# Optional: stricter threshold for an individual file
+[coverage.resources."tests/core-common/resources/vertica.resource"]
+fail_under = 95.0
+```
+
+| Key | Default | Description |
+|---|---|---|
+| `fail_under` | `0.0` | Minimum overall coverage percentage |
+| `paths` | *(none)* | Directories scanned recursively |
+| `patterns` | `["*.resource"]` | Filename patterns to collect |
+| `exclude` | `[]` | Patterns to skip |
+| `[coverage.resources."<file>"]` | — | Per-file threshold override |
+
+Both the global total and each individual resource must meet its threshold for
+the run to pass.
+
+All paths are resolved **relative to the config file's own directory**, so the
+same config works no matter which directory you invoke `robot` from. Absolute
+paths are used as-is. A file listed explicitly under `[coverage.resources]` is
+always measured, even if it lies outside `paths`.
+
+### Running
+
+Enable it as a listener:
+
+```bash
+robot --listener MockCoverage:config=mock-coverage.toml tests/
+```
+
+Listener options are `name=value` pairs separated by colons:
+
+| Option | Default | Description |
+|---|---|---|
+| `config` | `mock-coverage.toml` | Path to the TOML configuration file |
+| `output` | `coverage.json` | JSON report path (directories are created) |
+| `enforce` | `true` | Whether to fail the run when below threshold |
+| `console` | `failing` | `failing` lists only breaches; `all` lists every resource |
+
+```bash
+# Full table, reporting only (no build failure)
+robot --listener MockCoverage:config=cov.toml:output=build/coverage.json:enforce=false:console=all tests/
+```
+
+### Output
+
+By default the console report lists only the resources that are below their
+threshold, which keeps output readable across large resource trees:
+
+```
+Resource Keyword Coverage
+  Resources below threshold (1):
+  res/brand-new.resource  0/2    0.00%  FAIL (>=50.0)
+  TOTAL                   3/8   37.50%  FAIL (>=50.0) [4 resources]
+```
+
+With `console=all`, every measured resource is listed:
+
+```
+Resource Keyword Coverage
+  res/deep/nested/util.resource  1/2   50.00%  PASS (>=50.0)
+  res/x/common.resource          1/2   50.00%  PASS (>=50.0)
+  res/y/common.resource          1/2   50.00%  PASS (>=50.0)
+  TOTAL                          3/6   50.00%  PASS (>=50.0) [3 resources]
+```
+
+When coverage is below threshold and `enforce` is enabled, the process exits with
+a non-zero status **even if all tests passed**, failing the build.
+
+A machine-readable JSON report is always written with the full per-file detail,
+naming exactly which keywords were covered and which were missed:
+
+```json
+{
+  "total": {
+    "resources": 1,
+    "defined": 4,
+    "covered": 3,
+    "percent": 75.0,
+    "fail_under": 75.0,
+    "passed": true
+  },
+  "resources": [
+    {
+      "path": "resources/coverage-demo.resource",
+      "defined": 4,
+      "covered": 3,
+      "percent": 75.0,
+      "fail_under": 75.0,
+      "passed": true,
+      "covered_keywords": ["Covered Keyword One", "Covered Keyword Three", "Covered Keyword Two"],
+      "missed_keywords": ["Uncovered Keyword"]
+    }
+  ]
+}
+```
+
+### Notes and limitations
+
+- Executed keywords are attributed to their **real source file**, resolved
+  through Robot Framework's namespace at call time. Resource files sharing the
+  same base name in different directories are measured independently.
+- Coverage is measured at **keyword granularity** (was this keyword executed?),
+  not at line or branch level.
+- Python library keywords are not measured — use `pytest` with `coverage.py` for
+  those.
+- TOML parsing uses the stdlib `tomllib` on Python 3.11+; on older versions the
+  `tomli` backport is installed automatically as a dependency.
+
 ## Keywords
 
 ### Mock Keyword
@@ -178,6 +333,20 @@ MockResource patches Robot Framework's keyword execution:
 3. Replaces keyword body with Return statement containing mocked value
 4. Tracks call counts for verification
 5. Restores original keyword body on reset
+
+### MockCoverage
+
+MockCoverage measures resource keyword coverage as a listener:
+1. Reads thresholds and scan paths from the TOML config file
+2. Recursively discovers resource files under those paths
+3. Parses each one with Robot Framework's own parsing API to enumerate the
+   keywords it defines
+4. Records executed keywords via the `start_keyword` listener event, resolving
+   each keyword's real source file through Robot's namespace so same-named
+   resources stay distinct
+5. Computes per-resource and total coverage percentages at the end of the run
+6. Writes a JSON report and prints a summary table
+7. Exits non-zero if any threshold is unmet and enforcement is enabled
 
 ## Notes
 
