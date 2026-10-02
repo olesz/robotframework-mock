@@ -1,100 +1,162 @@
 # Release Guide
 
+Releases are published to PyPI automatically by the
+[`pypi-publish.yml`](.github/workflows/pypi-publish.yml) workflow when a tag
+matching `v*` is pushed.
+
 ## Prerequisites
 
-1. Install build tools:
-```bash
-pip install build twine
+One-time setup:
+
+1. A [PyPI](https://pypi.org/account/register/) account with access to the
+   `robotframework-mock` project.
+2. A `PYPI_API_TOKEN` repository secret
+   (Settings → Secrets and variables → Actions). The workflow authenticates as
+   `__token__` using this value; without it the build succeeds and the upload
+   step fails.
+3. For manual or test releases only:
+   ```bash
+   pip install build twine
+   ```
+
+## Where the version lives
+
+The version is declared in **one place**, `setup.cfg`:
+
+```ini
+[metadata]
+name = robotframework-mock
+version = 0.4.0
 ```
 
-2. Create accounts on:
-   - [PyPI](https://pypi.org/account/register/) (production)
-   - [TestPyPI](https://test.pypi.org/account/register/) (testing)
+The published version is taken from this file, **not** from the git tag. The tag
+is only the trigger. Always make the tag match `setup.cfg`, or you will publish
+a version that does not correspond to the tag name.
 
-## Release Steps
+## Releasing
 
-### 1. Update Version
+### 1. Bump the version
 
-Update version in:
-- `setup.py` (line 8)
-- `src/mock/__init__.py` (line 3)
+Edit `version` in `setup.cfg` following [semantic versioning](https://semver.org/):
 
-### 2. Build the Package
+- **patch** (`0.4.0` → `0.4.1`) — bug fixes only
+- **minor** (`0.4.0` → `0.5.0`) — new backwards-compatible features
+- **major** (`0.4.0` → `1.0.0`) — breaking changes
+
+Check what is already on PyPI first — **PyPI permanently rejects re-uploading an
+existing version**, so a mistake burns that version number:
+
+```bash
+pip index versions robotframework-mock
+```
+
+### 2. Verify the build locally
+
+Tests are **not** a precondition of the publish workflow, so verify before
+tagging:
+
+```bash
+pytest                                    # unit tests
+robot test/keyword                        # keyword tests
+pylint $(git ls-files '*.py')             # lint
+```
+
+Confirm the distribution builds and contains all three packages:
+
+```bash
+rm -rf build/ dist/ src/*.egg-info/
+python -m build
+python -m twine check dist/*
+tar -tzf dist/*.tar.gz | grep -E "Mock(Library|Resource|Coverage)/"
+```
+
+### 3. Commit, tag and push
+
+```bash
+git add setup.cfg
+git commit -m "Bump version to 0.4.0"
+git push
+
+git tag -a v0.4.0 -m "Release 0.4.0"
+git push origin v0.4.0      # this triggers the release
+```
+
+Watch the run under the repository's Actions tab.
+
+### 4. Verify the release
+
+```bash
+pip install --upgrade robotframework-mock
+python -c "import MockLibrary, MockResource, MockCoverage; print('ok')"
+```
+
+## Testing a release first (optional)
+
+To rehearse without consuming a real version number, upload to TestPyPI
+manually:
 
 ```bash
 python -m build
-```
-
-This creates:
-- `dist/robotframework-mock-X.Y.Z.tar.gz` (source distribution)
-- `dist/robotframework_mock-X.Y.Z-py3-none-any.whl` (wheel)
-
-### 3. Test on TestPyPI (Optional but Recommended)
-
-Upload to TestPyPI:
-```bash
 python -m twine upload --repository testpypi dist/*
+pip install --index-url https://test.pypi.org/simple/ \
+            --extra-index-url https://pypi.org/simple/ \
+            robotframework-mock
 ```
 
-Test installation:
-```bash
-pip install --index-url https://test.pypi.org/simple/ robotframework-mock
-```
+The `--extra-index-url` is required so dependencies (`robotframework`) resolve
+from real PyPI.
 
-### 4. Upload to PyPI
+## Manual release (fallback)
 
-```bash
-python -m twine upload dist/*
-```
-
-Enter your PyPI credentials when prompted.
-
-### 5. Verify Installation
+If the workflow is unavailable:
 
 ```bash
-pip install robotframework-mock
+rm -rf build/ dist/ src/*.egg-info/
+python -m build
+python -m twine check dist/*
+python -m twine upload dist/*     # username: __token__, password: your API token
 ```
 
-### 6. Tag the Release
-
-```bash
-git tag -a v1.0.0 -m "Release version 1.0.0"
-git push origin v1.0.0
-```
-
-## Using in Robot Framework
-
-After installation, import as:
+## Using the released package
 
 ```robot
 *** Settings ***
-Library    MockLibrary    DatabaseLibrary    WITH NAME    MockDB
+Library    DatabaseLibrary
+Library    MockLibrary    DatabaseLibrary    AS    MockDB
 ```
 
-## Local Development Installation
-
-For local testing before release:
+Coverage measurement is enabled as a listener rather than imported:
 
 ```bash
-pip install -e .
+robot --listener MockCoverage:config=mock-coverage.toml tests/
 ```
 
-This installs in "editable" mode, allowing you to test changes without reinstalling.
+See [README.md](README.md) for full usage of `MockLibrary`, `MockResource` and
+`MockCoverage`.
 
 ## Troubleshooting
 
-### Import Error in Robot Framework
+### `File already exists` on upload
 
-If you get import errors, verify the package is installed:
+That version is already on PyPI and cannot be overwritten. Bump the version in
+`setup.cfg`, commit, and tag again.
+
+### Tag pushed but nothing published
+
+The workflow only matches tags beginning with `v` (e.g. `v0.4.0`, not `0.4.0`).
+Check the Actions tab, and confirm `PYPI_API_TOKEN` is set.
+
+### Import error after installing
+
+Verify the install and that all packages shipped:
+
 ```bash
-pip show robotframework-mock
+pip show -f robotframework-mock
 ```
 
-### Clean Build
+### Clean build
 
-To clean previous builds:
 ```bash
-rm -rf build/ dist/ *.egg-info/
+rm -rf build/ dist/ src/*.egg-info/
+python -m build
 ```
-
-Then rebuild with `python -m build`.
