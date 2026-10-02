@@ -4,6 +4,11 @@ A Robot Framework library for mocking keywords in unit tests.
 
 ## Installation
 
+### Requirements
+
+- Python 3.10 – 3.14
+- Robot Framework 7.0 – 7.5
+
 ### From PyPI (once published)
 
 ```bash

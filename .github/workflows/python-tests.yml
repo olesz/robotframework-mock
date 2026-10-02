@@ -12,7 +12,9 @@ jobs:
 
     strategy:
       matrix:
-        python-version: ["3.14"]
+        # Full supported range: 3.10 exercises the tomli backport path,
+        # 3.11+ the stdlib tomllib path in MockCoverage.
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
     steps:
     - name: Checkout repository
