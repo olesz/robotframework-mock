@@ -12,7 +12,7 @@ jobs:
 
     strategy:
       matrix:
-        robot-version: ["7.0", "7.1", "7.2", "7.3", "7.4"]
+        robot-version: ["7.0", "7.1", "7.2", "7.3", "7.4", "7.5"]
 
     steps:
     - name: Checkout repository
@@ -32,3 +32,44 @@ jobs:
 
     - name: Run tests
       run: robot test/keyword
+
+    - name: Verify coverage gate passes when thresholds are met
+      run: |
+        robot --listener "MockCoverage:config=test/keyword/mock-coverage.toml:output=build/coverage.json:console=all" \
+              --outputdir out/coverage-pass \
+              test/keyword/coverage-tests.robot
+        if [ ! -f build/coverage.json ]; then
+          echo "::error::Coverage report was not written"
+          exit 1
+        fi
+        python -c "
+        import json, sys
+        d = json.load(open('build/coverage.json'))['total']
+        print('coverage report:', d)
+        assert d['passed'] is True, 'expected the gate to pass'
+        assert d['defined'] == 4, f\"expected 4 defined keywords, got {d['defined']}\"
+        assert d['covered'] == 3, f\"expected 3 covered keywords, got {d['covered']}\"
+        "
+
+    - name: Verify coverage gate fails when thresholds are not met
+      run: |
+        set +e
+        output=$(robot --listener "MockCoverage:config=test/keyword/mock-coverage-strict.toml:output=build/coverage-strict.json" \
+                       --outputdir out/coverage-fail \
+                       test/keyword/coverage-tests.robot 2>&1)
+        status=$?
+        set -e
+        echo "$output"
+        if [ "$status" -eq 0 ]; then
+          echo "::error::Coverage gate should have failed the run but exited 0"
+          exit 1
+        fi
+        if ! echo "$output" | grep -q "coverage below required threshold"; then
+          echo "::error::Run failed, but not because of the coverage gate"
+          exit 1
+        fi
+        if ! echo "$output" | grep -q "2 tests, 2 passed, 0 failed"; then
+          echo "::error::Expected all tests to pass; the gate alone should fail the run"
+          exit 1
+        fi
+        echo "Coverage gate correctly failed the build while all tests passed."

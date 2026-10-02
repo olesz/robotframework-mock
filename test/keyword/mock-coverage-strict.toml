@@ -1,0 +1,15 @@
+# Deliberately unreachable coverage configuration.
+#
+# coverage-tests.robot exercises 3 of the 4 keywords in coverage-demo.resource
+# (75%), so requiring 100% must fail the run even though every test passes.
+# Used by CI to verify the coverage gate actually blocks a build.
+#
+# Run with:
+#   robot --listener MockCoverage:config=test/keyword/mock-coverage-strict.toml \
+#         test/keyword/coverage-tests.robot
+
+[coverage]
+fail_under = 100.0
+paths = ["resources"]
+patterns = ["*.resource"]
+exclude = ["*resource-test*"]
