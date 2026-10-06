@@ -333,10 +333,14 @@ recorded call matches, so the order of calls does not matter.
 MockDB.Verify Keyword Called With    execute_sql    SELECT 1    timeout=${30}
 ```
 
-Arguments are compared with Python equality, so types matter. Robot passes test
-data as strings, but converts arguments of typed library keywords first, so such
-a value must be given as a typed Robot variable (`timeout=${30}`, not
-`timeout=30`) to match what was recorded.
+Arguments are compared with Python equality, so types matter. Values are
+recorded exactly as Robot Framework passed them to the keyword: test data is
+string data, but Robot converts arguments of keywords that declare argument
+types, and which built-in keywords declare types differs between Robot
+Framework versions. When a recorded value is therefore not a string, give the
+expectation as a typed Robot variable (`timeout=${30}` rather than
+`timeout=30`), or read the call back with `Get Keyword Call Kwargs` and assert
+on it with a type-insensitive comparison.
 
 ### Get Keyword Call Args
 

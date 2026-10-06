@@ -147,10 +147,12 @@ class CallInspectionMixin:
         the check usable when the order of calls is not significant. Use
         :meth:`get_keyword_call_args` to assert on a specific call instead.
 
-        Arguments are compared with Python equality, so types matter. Robot
-        passes test data as strings but converts arguments of typed library
-        keywords first, so such a value must be given as a typed Robot variable
-        (``base=${16}``, not ``base=16``) to match what was recorded.
+        Arguments are compared with Python equality, so types matter. Values
+        are recorded exactly as Robot Framework passed them to the keyword, and
+        Robot converts arguments of keywords that declare argument types. Which
+        built-in keywords declare types differs between Robot Framework
+        versions, so a non-string expectation must be given as a typed Robot
+        variable (``timeout=${30}`` rather than ``timeout=30``).
 
         Args:
             keyword_name: Name of the mocked keyword.

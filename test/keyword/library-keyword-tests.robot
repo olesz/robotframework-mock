@@ -6,6 +6,8 @@ Library    MockLibrary    DateTime    AS    MockDateTime
 Library    MockLibrary    BuiltIn    AS    MockBuiltin
 Library    resources/DynamicLibrary.py
 Library    MockLibrary    DynamicLibrary    ${CURDIR}/resources/dynamic_library_resolver.py    AS    MockDynamic
+Library    resources/StaticLibrary.py
+Library    MockLibrary    StaticLibrary    AS    MockStatic
 
 Test Teardown    Teardown
 
@@ -39,32 +41,32 @@ Test Mock Simple Class
 
 Test Call Inspection
     [Documentation]    Recorded positional and named arguments of a library keyword
-    ...    can be inspected. Values are recorded as Robot passed them to the
-    ...    library, so a typed argument is recorded after type conversion.
-    MockBuiltin.Mock Keyword    Convert To Binary    return_value=mocked
+    ...    can be inspected. StaticLibrary declares no argument types, so the
+    ...    recorded values are the strings written here on every Robot version.
+    MockStatic.Mock Keyword    Execute Query    return_value=mocked
 
-    Convert To Binary    aaa    base=16
-    Convert To Binary    bbb
+    Execute Query    SELECT 1    timeout=30
+    Execute Query    SELECT 2
 
-    ${count}=     MockBuiltin.Get Keyword Call Count     Convert To Binary
-    ${args}=      MockBuiltin.Get Keyword Call Args      Convert To Binary    index=0
-    ${kwargs}=    MockBuiltin.Get Keyword Call Kwargs    Convert To Binary    index=0
-    Should Be Equal As Integers    ${count}           2
-    Should Be Equal                ${args}[0]         aaa
-    Should Be Equal                ${kwargs}[base]    ${16}
+    ${count}=     MockStatic.Get Keyword Call Count     Execute Query
+    ${args}=      MockStatic.Get Keyword Call Args      Execute Query    index=0
+    ${kwargs}=    MockStatic.Get Keyword Call Kwargs    Execute Query    index=0
+    Should Be Equal As Integers    ${count}              2
+    Should Be Equal                ${args}[0]            SELECT 1
+    Should Be Equal                ${kwargs}[timeout]    30
 
 Test Verify Library Keyword Called With
     [Documentation]    Verification succeeds for any matching call and fails when no
     ...    recorded call matches.
-    MockBuiltin.Mock Keyword    Convert To Binary    return_value=mocked
+    MockStatic.Mock Keyword    Execute Query    return_value=mocked
 
-    Convert To Binary    aaa    base=16
-    Convert To Binary    bbb
+    Execute Query    SELECT 1    timeout=30
+    Execute Query    SELECT 2
 
-    MockBuiltin.Verify Keyword Called With    Convert To Binary    aaa    base=${16}
-    MockBuiltin.Verify Keyword Called With    Convert To Binary    bbb
+    MockStatic.Verify Keyword Called With    Execute Query    SELECT 1    timeout=30
+    MockStatic.Verify Keyword Called With    Execute Query    SELECT 2
     Run Keyword And Expect Error    *was not called with*
-    ...    MockBuiltin.Verify Keyword Called With    Convert To Binary    ccc
+    ...    MockStatic.Verify Keyword Called With    Execute Query    SELECT 3
 
 Test Call Inspection Of Last Call
     [Documentation]    A negative index addresses calls from the end of the list.
@@ -130,3 +132,4 @@ Teardown
     MockDateTime.Reset Mocks
     MockBuiltin.Reset Mocks
     MockDynamic.Reset Mocks
+    MockStatic.Reset Mocks
