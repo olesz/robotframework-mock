@@ -92,7 +92,7 @@ pip install --upgrade robotframework-mock
 python -c "import MockLibrary, MockResource, MockCoverage; print('ok')"
 ```
 
-> **Behaviour change to call out in the release notes (0.4.0 → next version)**
+> **Behaviour change to call out in the release notes (0.4.0 → 0.5.0)**
 >
 > `MockResource` now calls a mocked keyword's `side_effect` with the call's
 > resolved arguments, splatted like `MockLibrary` does, instead of a single
