@@ -61,13 +61,15 @@ robot test/keyword                        # keyword tests
 pylint $(git ls-files '*.py')             # lint
 ```
 
-Confirm the distribution builds and contains all three packages:
+Confirm the distribution builds and contains all packages. `_mock_core` holds
+internals shared by `MockLibrary` and `MockResource`; if it is missing from the
+distribution, importing either of them fails:
 
 ```bash
 rm -rf build/ dist/ src/*.egg-info/
 python -m build
 python -m twine check dist/*
-tar -tzf dist/*.tar.gz | grep -E "Mock(Library|Resource|Coverage)/"
+tar -tzf dist/*.tar.gz | grep -E "(Mock(Library|Resource|Coverage)|_mock_core)/"
 ```
 
 ### 3. Commit, tag and push
@@ -89,6 +91,16 @@ Watch the run under the repository's Actions tab.
 pip install --upgrade robotframework-mock
 python -c "import MockLibrary, MockResource, MockCoverage; print('ok')"
 ```
+
+> **Behaviour change to call out in the release notes (0.4.0 → next version)**
+>
+> `MockResource` now calls a mocked keyword's `side_effect` with the call's
+> resolved arguments, splatted like `MockLibrary` does, instead of a single
+> tuple of the raw argument text. A side effect written as
+> `lambda args, *rest: ...` that indexed into that tuple must become
+> `lambda first, second=None: ...`. This is a breaking change for
+> `side_effect` users of `MockResource`, so it warrants at least a minor
+> version bump.
 
 ## Testing a release first (optional)
 

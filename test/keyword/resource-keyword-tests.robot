@@ -41,6 +41,79 @@ Test Mock Reset
     MockResourceTest.Reset Mocks
     Verify Original Behavior
 
+Test Recorded Call Arguments Are Resolved
+    [Documentation]    Arguments reach the mock with variables resolved, not as
+    ...    the raw text written at the call site.
+    VAR    ${query}=    SELECT 1
+    MockResourceTest.Mock Keyword    Resource Keyword Test With Argument    return_value=mocked
+
+    Resource Keyword Test With Argument    ${query} commit;
+
+    ${args}=    MockResourceTest.Get Keyword Call Args    Resource Keyword Test With Argument
+    Should Be Equal    ${args}[0]    SELECT 1 commit;
+
+Test Recorded Named Arguments
+    [Documentation]    A name=value argument is recorded as a named argument when the
+    ...    keyword declares that argument.
+    MockResourceTest.Mock Keyword    Resource Keyword Test With Named Arguments    return_value=mocked
+
+    Resource Keyword Test With Named Arguments    value    option=custom
+
+    ${args}=      MockResourceTest.Get Keyword Call Args      Resource Keyword Test With Named Arguments
+    ${kwargs}=    MockResourceTest.Get Keyword Call Kwargs    Resource Keyword Test With Named Arguments
+    Should Be Equal    ${args}[0]           value
+    Should Be Equal    ${kwargs}[option]    custom
+
+Test Undeclared Named Argument Stays Positional
+    [Documentation]    A value containing = is not mistaken for a named argument when
+    ...    the keyword does not declare that name.
+    MockResourceTest.Mock Keyword    Resource Keyword Test With Named Arguments    return_value=mocked
+
+    Resource Keyword Test With Named Arguments    not_an_argument=stays_positional
+
+    ${args}=      MockResourceTest.Get Keyword Call Args      Resource Keyword Test With Named Arguments
+    ${kwargs}=    MockResourceTest.Get Keyword Call Kwargs    Resource Keyword Test With Named Arguments
+    Should Be Equal    ${args}[0]    not_an_argument=stays_positional
+    Should Be Empty    ${kwargs}
+
+Test Verify Keyword Called With
+    [Documentation]    Verification succeeds for any matching call and reports the
+    ...    recorded calls when none matches.
+    MockResourceTest.Mock Keyword    Resource Keyword Test With Argument    return_value=mocked
+
+    Resource Keyword Test With Argument    first
+    Resource Keyword Test With Argument    second
+
+    MockResourceTest.Verify Keyword Called With    Resource Keyword Test With Argument    first
+    MockResourceTest.Verify Keyword Called With    Resource Keyword Test With Argument    second
+    ${count}=    MockResourceTest.Get Keyword Call Count    Resource Keyword Test With Argument
+    Should Be Equal As Integers    ${count}    2
+
+    Run Keyword And Expect Error    *was not called with*
+    ...    MockResourceTest.Verify Keyword Called With    Resource Keyword Test With Argument    third
+
+Test Call Inspection Of Unmocked Or Missing Call
+    [Documentation]    Inspecting a keyword that was not mocked, or a call index that
+    ...    does not exist, fails with an explanatory error.
+    Run Keyword And Expect Error    Keyword 'Resource Keyword Test' was not mocked
+    ...    MockResourceTest.Get Keyword Call Args    Resource Keyword Test
+
+    MockResourceTest.Mock Keyword    Resource Keyword Test    return_value=mocked
+    Resource Keyword Test
+    Run Keyword And Expect Error    *No call recorded at index 5*
+    ...    MockResourceTest.Get Keyword Call Args    Resource Keyword Test    index=5
+
+Test Side Effect Receives Resolved Arguments
+    [Documentation]    A side effect is called with the resolved arguments, so it can
+    ...    branch on real values instead of raw variable text.
+    ${side_effect}=    Evaluate    lambda arg, option='none': f'{arg}|{option}'
+    MockResourceTest.Mock Keyword    Resource Keyword Test With Named Arguments    side_effect=${side_effect}
+    VAR    ${value}=    resolved
+
+    ${result}=    Resource Keyword Test With Named Arguments    ${value}    option=custom
+
+    Should Be Equal    ${result}    resolved|custom
+
 
 *** Keywords ***
 Setup Mocks

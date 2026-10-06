@@ -37,6 +37,45 @@ Test Mock Simple Class
     Should Be Equal    ${result}    test_data_2
     MockBuiltin.Verify Keyword Called    Convert To Binary    1
 
+Test Call Inspection
+    [Documentation]    Recorded positional and named arguments of a library keyword
+    ...    can be inspected. Values are recorded as Robot passed them to the
+    ...    library, so a typed argument is recorded after type conversion.
+    MockBuiltin.Mock Keyword    Convert To Binary    return_value=mocked
+
+    Convert To Binary    aaa    base=16
+    Convert To Binary    bbb
+
+    ${count}=     MockBuiltin.Get Keyword Call Count     Convert To Binary
+    ${args}=      MockBuiltin.Get Keyword Call Args      Convert To Binary    index=0
+    ${kwargs}=    MockBuiltin.Get Keyword Call Kwargs    Convert To Binary    index=0
+    Should Be Equal As Integers    ${count}           2
+    Should Be Equal                ${args}[0]         aaa
+    Should Be Equal                ${kwargs}[base]    ${16}
+
+Test Verify Library Keyword Called With
+    [Documentation]    Verification succeeds for any matching call and fails when no
+    ...    recorded call matches.
+    MockBuiltin.Mock Keyword    Convert To Binary    return_value=mocked
+
+    Convert To Binary    aaa    base=16
+    Convert To Binary    bbb
+
+    MockBuiltin.Verify Keyword Called With    Convert To Binary    aaa    base=${16}
+    MockBuiltin.Verify Keyword Called With    Convert To Binary    bbb
+    Run Keyword And Expect Error    *was not called with*
+    ...    MockBuiltin.Verify Keyword Called With    Convert To Binary    ccc
+
+Test Call Inspection Of Last Call
+    [Documentation]    A negative index addresses calls from the end of the list.
+    MockBuiltin.Mock Keyword    Convert To Binary    return_value=mocked
+
+    Convert To Binary    first
+    Convert To Binary    last
+
+    ${args}=    MockBuiltin.Get Keyword Call Args    Convert To Binary    index=-1
+    Should Be Equal    ${args}[0]    last
+
 Test Mock With Side Effect
     [Documentation]    Test mocking with side effect function
     ${side_effect}=    Evaluate    lambda time, *args, **kwargs: 'morning' if '08:00' in time else 'evening'

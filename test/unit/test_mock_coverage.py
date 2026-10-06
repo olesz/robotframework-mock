@@ -269,6 +269,7 @@ def test_parse_defined_keywords_reads_real_resource():
     assert parse_defined_keywords(RESOURCE_1) == [
         "Resource Keyword Test",
         "Resource Keyword Test With Argument",
+        "Resource Keyword Test With Named Arguments",
     ]
 
 

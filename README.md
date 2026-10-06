@@ -37,6 +37,7 @@ pip install -r requirements-dev.txt
 - Mock Robot Framework's BuiltIn keywords
 - Support for keywords with custom names via @keyword decorator
 - Verify keyword calls and call counts
+- Inspect and verify the arguments a mocked keyword was called with
 - Measure resource-file keyword coverage with configurable thresholds
 - Simple API with three main keywords
 
@@ -317,6 +318,63 @@ Verify a keyword was called, optionally checking call count.
 MockDB.Verify Keyword Called    execute_sql    times=1
 ```
 
+### Verify Keyword Called With
+
+Verify a keyword was called with the given arguments. Passes when **at least one**
+recorded call matches, so the order of calls does not matter.
+
+**Arguments:**
+- `keyword_name` - Name of the keyword to verify
+- `*args` - Expected positional arguments
+- `**kwargs` - Expected named arguments
+
+**Example:**
+```robot
+MockDB.Verify Keyword Called With    execute_sql    SELECT 1    timeout=${30}
+```
+
+Arguments are compared with Python equality, so types matter. Robot passes test
+data as strings, but converts arguments of typed library keywords first, so such
+a value must be given as a typed Robot variable (`timeout=${30}`, not
+`timeout=30`) to match what was recorded.
+
+### Get Keyword Call Args
+
+Return the positional arguments of one call to a mocked keyword.
+
+**Arguments:**
+- `keyword_name` - Name of the mocked keyword
+- `index` - Zero-based call index, negative counts from the end (default `0`)
+
+**Example:**
+```robot
+${args}=    MockDB.Get Keyword Call Args    execute_sql    index=0
+Should Be Equal    ${args}[0]    SELECT 1
+```
+
+### Get Keyword Call Kwargs
+
+Return the named arguments of one call to a mocked keyword.
+
+**Arguments:**
+- `keyword_name` - Name of the mocked keyword
+- `index` - Zero-based call index, negative counts from the end (default `0`)
+
+**Example:**
+```robot
+${kwargs}=    MockDB.Get Keyword Call Kwargs    execute_sql
+Should Be Equal    ${kwargs}[timeout]    ${30}
+```
+
+### Get Keyword Call Count
+
+Return how many times a mocked keyword was called.
+
+**Example:**
+```robot
+${count}=    MockDB.Get Keyword Call Count    execute_sql
+```
+
 ## How It Works
 
 ### MockLibrary
@@ -335,9 +393,12 @@ MockLibrary dynamically replaces keyword implementations:
 MockResource patches Robot Framework's keyword execution:
 1. Patches the Namespace.get_runner method
 2. Intercepts keyword execution for the specified resource file
-3. Replaces keyword body with Return statement containing mocked value
-4. Tracks call counts for verification
-5. Restores original keyword body on reset
+3. Resolves the call's arguments - variables are replaced, and a `name=value`
+   argument becomes a named argument when the keyword declares that name - so
+   mocks record what the keyword was really called with
+4. Replaces keyword body with Return statement containing mocked value
+5. Tracks call counts and call arguments for verification
+6. Restores original keyword body on reset
 
 ### MockCoverage
 

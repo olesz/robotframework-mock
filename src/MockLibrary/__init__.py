@@ -8,6 +8,8 @@ from unittest.mock import Mock
 from robot.api.deco import keyword
 from robot.libraries.BuiltIn import BuiltIn
 
+from _mock_core import CallInspectionMixin
+
 
 def _get_library_instance(library_name_or_alias):
     """Retrieve a library instance from Robot Framework's runtime.
@@ -73,7 +75,7 @@ def _load_custom_resolver(resolver_path: str):
     )
 
 
-class MockLibrary():
+class MockLibrary(CallInspectionMixin):
     """Mock keywords from any Robot Framework library for unit testing.
     
     Example:
@@ -86,6 +88,20 @@ class MockLibrary():
     """
 
     ROBOT_LIBRARY_SCOPE = 'GLOBAL'
+
+    def _mock_key(self, keyword_name: str) -> str:
+        """Return the ``self._mocks`` key for *keyword_name*.
+
+        Mocks are stored under the method name, so the keyword name is
+        normalised the same way :meth:`mock_keyword` normalises it.
+
+        Args:
+            keyword_name: Keyword name as written in the test.
+
+        Returns:
+            The method name used as the mock key.
+        """
+        return keyword_name.lower().replace(' ', '_')
 
     def __init__(self, library_name_or_alias: str, custom_resolver_path: str = None):
         """Initialize MockLibrary with a target library to mock.
