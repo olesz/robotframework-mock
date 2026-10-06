@@ -1,3 +1,4 @@
+# pylint: disable=invalid-name
 """Static test library used by the call-inspection keyword tests.
 
 The keywords below declare no argument types and default to strings, so every
@@ -13,6 +14,7 @@ To Binary``, for example, records ``base=16`` as a string up to Robot Framework
 
 class StaticLibrary:
     """Library whose arguments are recorded exactly as written in the test."""
+    # pylint: disable=too-few-public-methods
 
     def execute_query(self, query, timeout='default'):
         """Return the arguments joined, so unmocked calls stay observable.
