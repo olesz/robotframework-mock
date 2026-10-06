@@ -103,6 +103,39 @@ Test Call Inspection Of Unmocked Or Missing Call
     Run Keyword And Expect Error    *No call recorded at index 5*
     ...    MockResourceTest.Get Keyword Call Args    Resource Keyword Test    index=5
 
+Test Return Value Can Be Any Object
+    [Documentation]    A mocked keyword can return a list or a dictionary, not only a string,
+    ...    so keywords that forward a query result or a parsed response can be mocked.
+    ${rows}=    Evaluate    [['first', 'second'], ['third']]
+    MockResourceTest.Mock Keyword    Resource Keyword Returning Data    return_value=${rows}
+
+    ${result}=    Resource Keyword Returning Data
+
+    Should Be Equal    ${result}[0][0]    first
+    Should Be Equal    ${result}[0][1]    second
+    Should Be Equal    ${result}[1][0]    third
+
+Test Return Value Object When Called From Another Keyword
+    [Documentation]    The object survives an extra keyword scope between the test and the
+    ...    mocked keyword, which is how production resources call each other.
+    ${payload}=    Evaluate    {'key': 'value'}
+    MockResourceTest.Mock Keyword    Resource Keyword Returning Data    return_value=${payload}
+
+    ${result}=    Call Resource Keyword Through Wrapper
+
+    Should Be Equal    ${result}[key]    value
+
+Test Return Value Scalars Are Unchanged
+    [Documentation]    Strings and None keep working alongside object return values.
+    MockResourceTest.Mock Keyword    Resource Keyword Returning Data    return_value=plain
+    ${text}=    Resource Keyword Returning Data
+    Should Be Equal    ${text}    plain
+
+    MockResourceTest.Reset Mocks
+    MockResourceTest.Mock Keyword    Resource Keyword Returning Data    return_value=${None}
+    ${empty}=    Resource Keyword Returning Data
+    Should Be Equal    ${empty}    ${None}
+
 Test Side Effect Receives Resolved Arguments
     [Documentation]    A side effect is called with the resolved arguments, so it can
     ...    branch on real values instead of raw variable text.
@@ -141,3 +174,8 @@ Verify Original Behavior
 Teardown
     [Documentation]    Reset all mocks after each test
     MockResourceTest.Reset Mocks
+
+Call Resource Keyword Through Wrapper
+    [Documentation]    Put a keyword scope between the test and the mocked keyword.
+    ${inner}=    Resource Keyword Returning Data
+    RETURN    ${inner}

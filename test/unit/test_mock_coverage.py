@@ -270,6 +270,7 @@ def test_parse_defined_keywords_reads_real_resource():
         "Resource Keyword Test",
         "Resource Keyword Test With Argument",
         "Resource Keyword Test With Named Arguments",
+        "Resource Keyword Returning Data",
     ]
 
 

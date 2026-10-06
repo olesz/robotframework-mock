@@ -11,6 +11,13 @@ from robot.utils import split_from_equals
 
 from _mock_core import CallInspectionMixin
 
+# Robot resolves the values of a RETURN statement as variable expressions, so a
+# mocked return value cannot be embedded in one directly - anything that is not
+# a string raises a TypeError. The value is therefore published under this name
+# and the injected RETURN refers to it, which lets a mock return any Python
+# object (a query result set, a parsed JSON body, a list of pods...).
+RETURN_VARIABLE = '${__mock_resource_return__}'
+
 
 def _resolve_arguments(keyword_obj, data, context):
     """Split a keyword call's raw arguments into resolved args and kwargs.
@@ -90,7 +97,11 @@ class MockResource(CallInspectionMixin):
                         keyword_runner.keyword, data, context
                     )
                     mock_result = mock(*args, **kwargs)
-                    keyword_runner.keyword.body._items = [Return(values=[mock_result])]  # pylint: disable=protected-access
+                    # Test scope, so the value is visible to the keyword's own
+                    # body even when the mocked keyword is called from inside
+                    # another keyword rather than directly from the test.
+                    context.variables.set_test(RETURN_VARIABLE, mock_result)
+                    keyword_runner.keyword.body._items = [Return(values=[RETURN_VARIABLE])]  # pylint: disable=protected-access
                     return original_run(data, result, context, run)
                 keyword_runner.run = patched_run
 

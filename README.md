@@ -296,6 +296,14 @@ Mock a keyword with a return value or side effect.
 MockDB.Mock Keyword    query    return_value=test_data
 ```
 
+`return_value` may be any Python object, not only a string, so a keyword that
+forwards a query result or a parsed response body can be mocked directly:
+
+```robot
+${rows}=    Evaluate    [['Europe/Budapest']]
+MockRes.Mock Keyword    Run Query    return_value=${rows}
+```
+
 ### Reset Mocks
 
 Restore all mocked keywords to their original implementations.

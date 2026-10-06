@@ -9,3 +9,6 @@ Resource Keyword Test With Argument
 Resource Keyword Test With Named Arguments
     [Arguments]    ${arg}    ${option}=default
     RETURN    ${arg}-${option}
+
+Resource Keyword Returning Data
+    RETURN    original
