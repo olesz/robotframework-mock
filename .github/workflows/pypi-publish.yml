@@ -23,6 +23,98 @@ jobs:
       - name: Build
         run: python -m build
 
+      - name: Verify distribution metadata
+        run: python -m twine check dist/*
+
+      - name: Verify all packages are included in the distribution
+        run: |
+          python - <<'PY'
+          import glob
+          import sys
+          import tarfile
+          import zipfile
+
+          # _mock_core holds internals shared by MockLibrary and MockResource.
+          # If any of these is missing from the distribution, importing the
+          # library fails at runtime, and nothing else in CI would catch it
+          # because this workflow does not run the test suites.
+          EXPECTED = {"MockCoverage", "MockLibrary", "MockResource", "_mock_core"}
+          errors = []
+
+          def single(pattern):
+              matches = glob.glob(pattern)
+              if len(matches) != 1:
+                  errors.append(f"expected exactly one {pattern}, found {matches}")
+                  return None
+              return matches[0]
+
+          sdist = single("dist/*.tar.gz")
+          if sdist:
+              with tarfile.open(sdist) as archive:
+                  names = archive.getnames()
+              missing = {
+                  package for package in EXPECTED
+                  if not any(n.endswith(f"/src/{package}/__init__.py") for n in names)
+              }
+              if missing:
+                  errors.append(f"sdist is missing {sorted(missing)}")
+
+          wheel = single("dist/*.whl")
+          if wheel:
+              with zipfile.ZipFile(wheel) as archive:
+                  names = archive.namelist()
+                  missing = {
+                      package for package in EXPECTED
+                      if f"{package}/__init__.py" not in names
+                  }
+                  if missing:
+                      errors.append(f"wheel is missing {sorted(missing)}")
+
+                  top_level = [n for n in names if n.endswith("top_level.txt")]
+                  if not top_level:
+                      errors.append("wheel has no top_level.txt")
+                  else:
+                      declared = set(archive.read(top_level[0]).decode().split())
+                      if declared != EXPECTED:
+                          errors.append(
+                              f"top_level.txt declares {sorted(declared)}, "
+                              f"expected {sorted(EXPECTED)}"
+                          )
+
+          for error in errors:
+              print(f"::error::{error}")
+          if errors:
+              sys.exit(1)
+          print(f"Distribution contains all packages: {sorted(EXPECTED)}")
+          PY
+
+      - name: Verify the built wheel imports once installed
+        run: |
+          python -m venv /tmp/install-check
+          /tmp/install-check/bin/python -m pip install --quiet dist/*.whl
+          /tmp/install-check/bin/python - <<'PY'
+          from MockCoverage import MockCoverage
+          from MockLibrary import MockLibrary
+          from MockResource import MockResource
+
+          # The call-inspection keywords come from the shared _mock_core package,
+          # so a missing or stale package shows up here as an absent attribute.
+          required = (
+              "get_keyword_call_args",
+              "get_keyword_call_count",
+              "get_keyword_call_kwargs",
+              "verify_keyword_called_with",
+          )
+          for library in (MockLibrary, MockResource):
+              missing = [name for name in required if not hasattr(library, name)]
+              if missing:
+                  raise SystemExit(
+                      f"::error::{library.__name__} is missing {missing}"
+                  )
+          assert MockCoverage.ROBOT_LISTENER_API_VERSION == 3
+          print("Installed wheel imports and exposes the expected keywords")
+          PY
+
       - name: Publish
         run: twine upload dist/*
         env:
