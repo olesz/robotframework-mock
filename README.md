@@ -420,8 +420,38 @@ MockLibrary dynamically replaces keyword implementations:
 3. Stores original methods before mocking
 4. Replaces methods with mock implementations using Python's unittest.mock.Mock
 5. Returns mocked values or executes side effects
-6. Tracks call counts for verification
+6. Tracks call counts and call arguments for verification
 7. Raises AttributeError if attempting to mock a non-existent keyword
+
+#### Mocks are installed on the library class
+
+Step 4 replaces the method on the target library's **class**, not on the
+instance. Two consequences are worth knowing, because neither is reported as an
+error:
+
+**A mock stays active until `Reset Mocks`, across tests and suites.** The mock
+is not scoped to the test that created it. A test that mocks a keyword and
+leaves without resetting hands the mock to everything that follows. Reset in a
+teardown rather than at the end of a test body, so the mock is also removed when
+the test fails midway.
+
+**Two `MockLibrary` instances wrapping the same library share one mock.** Last
+registration wins, and resetting *either* instance restores the real method:
+
+```robot
+Library    MockLibrary    DateTime    WITH NAME    MockA
+Library    MockLibrary    DateTime    WITH NAME    MockB
+...
+MockA.Mock Keyword    Convert Time    return_value=from-a
+MockB.Mock Keyword    Convert Time    return_value=from-b
+${result}=    Convert Time    12:00:00      # from-b: MockA's mock was overwritten
+MockB.Reset Mocks
+${result}=    Convert Time    12:00:00      # the real keyword, although MockA never reset
+```
+
+Use a single alias per library, and separate aliases only for *different*
+libraries. `MockResource` is not affected: it keys mocks per resource file, so
+instances for different resources are independent.
 
 ### MockResource
 
