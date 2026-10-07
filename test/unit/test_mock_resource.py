@@ -50,6 +50,26 @@ class TestMockResource(unittest.TestCase):
             self.mock_resource.mock_keyword("Test Keyword")
 
     @patch('MockResource.BuiltIn')
+    def test_mock_keyword_wrong_source_message(self, mock_builtin):
+        """Test the error names the keyword and the searched source.
+
+        This message is the only diagnostic when a mock target cannot be
+        resolved, so it has to identify both halves of the lookup.
+        """
+        keyword_runner = Mock()
+        keyword_runner.keyword.source = "different_resource.robot"
+        mock_builtin.return_value._namespace.get_runner.return_value = keyword_runner  # pylint: disable=protected-access
+
+        with self.assertRaises(AttributeError) as ctx:
+            self.mock_resource.mock_keyword("Test Keyword")
+
+        message = str(ctx.exception)
+        self.assertIn("Test Keyword", message)
+        self.assertIn(self.source, message)
+        self.assertNotIn("{", message)
+        self.assertFalse(message.startswith("f"))
+
+    @patch('MockResource.BuiltIn')
     def test_mock_keyword_with_side_effect(self, mock_builtin):
         """Test mocking a keyword with side effect."""
         keyword_runner = Mock()

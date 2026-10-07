@@ -150,7 +150,9 @@ class MockResource(CallInspectionMixin):
         resource_file = getattr(keyword_runner.keyword, "source", None)
 
         if self._source not in str(resource_file):
-            raise AttributeError("fKeyword '{keyword_name}' not found in {self._source}")
+            raise AttributeError(
+                f"Keyword '{keyword_name}' not found in {self._source}"
+            )
 
         self._original_items[keyword_name] = keyword_runner.keyword.body._items  # pylint: disable=protected-access
         if skip_setup:
