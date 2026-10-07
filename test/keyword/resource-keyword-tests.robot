@@ -197,6 +197,36 @@ Test Reset Restores Setup And Teardown
     Should Contain     ${LIFECYCLE_STEPS}    setup
     Should Contain     ${LIFECYCLE_STEPS}    teardown
 
+Test Mock Applies Regardless Of Case And Spacing
+    [Documentation]    Robot matches keyword names case-, space- and underscore-insensitively,
+    ...    so a mock registered one way must apply when the call site writes it another way.
+    ...    Otherwise the real keyword runs and the mock is silently ignored.
+    MockResourceTest.Mock Keyword    Resource Keyword Test    return_value=mocked
+
+    # robocop: off=NAME04,NAME18 - non-canonical spelling is the point of this test
+    ${result}=    resource_keyword_test
+
+    Should Be Equal    ${result}    mocked
+
+Test Mock Registered With Different Case Still Applies
+    [Documentation]    The same holds in the other direction, when the mock is registered with
+    ...    different case than the keyword definition uses.
+    MockResourceTest.Mock Keyword    RESOURCE KEYWORD TEST    return_value=mocked
+
+    ${result}=    Resource Keyword Test
+
+    Should Be Equal    ${result}    mocked
+
+Test Call Inspection Matches Regardless Of Case
+    [Documentation]    Inspecting recorded calls uses the same name matching, so the lookup
+    ...    cannot miss a mock that demonstrably applied.
+    MockResourceTest.Mock Keyword    Resource Keyword Test    return_value=mocked
+    Resource Keyword Test
+
+    ${count}=    MockResourceTest.Get Keyword Call Count    resource keyword test
+
+    Should Be Equal As Integers    ${count}    1
+
 Test Side Effect Receives Resolved Arguments
     [Documentation]    A side effect is called with the resolved arguments, so it can
     ...    branch on real values instead of raw variable text.

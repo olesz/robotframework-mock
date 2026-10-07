@@ -1,7 +1,9 @@
 """Unit tests for MockResource."""
 import unittest
 from unittest.mock import Mock, patch
+import MockResource as MockResource_module
 from MockResource import MockResource
+from _mock_core import normalize_keyword_name
 
 
 class TestMockResource(unittest.TestCase):
@@ -22,7 +24,7 @@ class TestMockResource(unittest.TestCase):
         """Test initialization stores source and sets up internal state."""
         mock_resource = MockResource("test.robot")
         self.assertEqual(mock_resource._source, "test.robot")  # pylint: disable=protected-access
-        self.assertIsNotNone(mock_resource._original_get_runner)  # pylint: disable=protected-access
+        self.assertIsNotNone(MockResource_module._ORIGINAL_GET_RUNNER)  # pylint: disable=protected-access
         self.assertEqual(len(mock_resource._original_items), 0)  # pylint: disable=protected-access
         self.assertEqual(len(mock_resource._mocks), 0)  # pylint: disable=protected-access
 
@@ -36,7 +38,7 @@ class TestMockResource(unittest.TestCase):
 
         self.mock_resource.mock_keyword("Test Keyword", return_value="mocked")
 
-        self.assertIn("Test Keyword", self.mock_resource._mocks)  # pylint: disable=protected-access
+        self.assertIn(normalize_keyword_name("Test Keyword"), self.mock_resource._mocks)  # pylint: disable=protected-access
         self.assertIn("Test Keyword", self.mock_resource._original_items)  # pylint: disable=protected-access
 
     @patch('MockResource.BuiltIn')
@@ -82,7 +84,7 @@ class TestMockResource(unittest.TestCase):
 
         self.mock_resource.mock_keyword("Test Keyword", side_effect=side_effect)
 
-        mock = self.mock_resource._mocks["Test Keyword"]  # pylint: disable=protected-access
+        mock = self.mock_resource._mocks[normalize_keyword_name("Test Keyword")]  # pylint: disable=protected-access
         self.assertEqual(mock.side_effect, side_effect)
 
     @patch('MockResource.BuiltIn')
@@ -107,7 +109,7 @@ class TestMockResource(unittest.TestCase):
     def test_verify_keyword_called(self):
         """Test verifying a keyword was called."""
         mock = Mock()
-        self.mock_resource._mocks["Test Keyword"] = mock  # pylint: disable=protected-access
+        self.mock_resource._mocks[normalize_keyword_name("Test Keyword")] = mock  # pylint: disable=protected-access
         mock()
 
         self.mock_resource.verify_keyword_called("Test Keyword")
@@ -115,7 +117,7 @@ class TestMockResource(unittest.TestCase):
     def test_verify_keyword_called_with_times(self):
         """Test verifying a keyword was called specific number of times."""
         mock = Mock()
-        self.mock_resource._mocks["Test Keyword"] = mock  # pylint: disable=protected-access
+        self.mock_resource._mocks[normalize_keyword_name("Test Keyword")] = mock  # pylint: disable=protected-access
         mock()
         mock()
 
@@ -124,7 +126,7 @@ class TestMockResource(unittest.TestCase):
     def test_verify_keyword_called_wrong_times(self):
         """Test verifying with wrong call count raises AssertionError."""
         mock = Mock()
-        self.mock_resource._mocks["Test Keyword"] = mock  # pylint: disable=protected-access
+        self.mock_resource._mocks[normalize_keyword_name("Test Keyword")] = mock  # pylint: disable=protected-access
         mock()
 
         with self.assertRaises(AssertionError) as ctx:
@@ -140,7 +142,7 @@ class TestMockResource(unittest.TestCase):
     def test_verify_keyword_called_zero_times(self):
         """Test verifying a keyword was called zero times."""
         mock = Mock()
-        self.mock_resource._mocks["Test Keyword"] = mock  # pylint: disable=protected-access
+        self.mock_resource._mocks[normalize_keyword_name("Test Keyword")] = mock  # pylint: disable=protected-access
 
         self.mock_resource.verify_keyword_called("Test Keyword", times=0)
 
@@ -163,8 +165,8 @@ class TestMockResource(unittest.TestCase):
         self.mock_resource.mock_keyword("Keyword Two", return_value="mock2")
 
         self.assertEqual(len(self.mock_resource._mocks), 2)  # pylint: disable=protected-access
-        self.assertIn("Keyword One", self.mock_resource._mocks)  # pylint: disable=protected-access
-        self.assertIn("Keyword Two", self.mock_resource._mocks)  # pylint: disable=protected-access
+        self.assertIn(normalize_keyword_name("Keyword One"), self.mock_resource._mocks)  # pylint: disable=protected-access
+        self.assertIn(normalize_keyword_name("Keyword Two"), self.mock_resource._mocks)  # pylint: disable=protected-access
 
 
 if __name__ == '__main__':

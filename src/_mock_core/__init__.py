@@ -8,10 +8,75 @@ implemented once here and mixed into both libraries, so the two cannot drift
 apart.
 """
 # pylint: disable=invalid-name
+import os
 from typing import Any, Dict, List
 from unittest.mock import call
 
 from robot.api.deco import keyword
+from robot.utils import normalize
+
+
+def normalize_keyword_name(name) -> str:
+    """Return a keyword name in the form Robot Framework matches on.
+
+    Robot treats keyword names as case-, space- and underscore-insensitive, so
+    mocks have to be keyed the same way. Without this, mocking ``Fetch Rows``
+    and calling ``fetch rows`` would silently run the real keyword.
+
+    Args:
+        name: Keyword name as written anywhere.
+
+    Returns:
+        The canonical comparison key for that name.
+    """
+    return normalize(str(name), ignore='_')
+
+
+# Keywords whose body is currently replaced by a mock, as
+# ``(absolute source path, normalized keyword name)`` pairs.
+#
+# MockCoverage consults this so a keyword that was only ever mocked is not
+# counted as covered: its real body never ran, and counting it would inflate the
+# reported coverage of the resource it lives in.
+MOCKED_KEYWORDS = set()
+
+
+def mocked_keyword_key(source, keyword_name) -> tuple:
+    """Build the registry key for a keyword in a resource file.
+
+    Args:
+        source: Path of the resource file defining the keyword.
+        keyword_name: Keyword name as written.
+
+    Returns:
+        The ``(source key, normalized name)`` tuple used by the registry.
+    """
+    return (os.path.normcase(os.path.abspath(str(source))),
+            normalize_keyword_name(keyword_name))
+
+
+def register_mocked_keyword(source, keyword_name) -> None:
+    """Record that a keyword's body is replaced by a mock."""
+    MOCKED_KEYWORDS.add(mocked_keyword_key(source, keyword_name))
+
+
+def unregister_mocked_keyword(source, keyword_name) -> None:
+    """Record that a keyword's body is restored."""
+    MOCKED_KEYWORDS.discard(mocked_keyword_key(source, keyword_name))
+
+
+def is_keyword_mocked(source_key: str, keyword_name) -> bool:
+    """Return whether a keyword is currently mocked.
+
+    Args:
+        source_key: Source path already normalised with ``os.path.normcase`` and
+            ``os.path.abspath``, as :func:`mocked_keyword_key` produces.
+        keyword_name: Keyword name as reported at execution time.
+
+    Returns:
+        ``True`` when the keyword's body is currently a mock.
+    """
+    return (source_key, normalize_keyword_name(keyword_name)) in MOCKED_KEYWORDS
 
 
 class CallInspectionMixin:

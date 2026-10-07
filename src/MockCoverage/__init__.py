@@ -60,6 +60,8 @@ except ModuleNotFoundError:  # pragma: no cover - exercised only on <3.11
 from robot.api import get_resource_model
 from robot.api.parsing import ModelVisitor
 
+from _mock_core import is_keyword_mocked
+
 
 DEFAULT_CONFIG_PATH = "mock-coverage.toml"
 DEFAULT_OUTPUT_PATH = "coverage.json"
@@ -571,6 +573,10 @@ class ExecutionTracker:
     def record(self, owner: Optional[str], name: str) -> None:
         """Record a keyword execution if it belongs to a measured resource.
 
+        Keywords whose body is currently replaced by a ``MockResource`` mock are
+        ignored: the real body never ran, so counting them would credit the
+        resource with coverage it did not earn.
+
         Args:
             owner: Robot's owner name for the keyword (resource base name).
             name: The executed keyword's name.
@@ -579,7 +585,7 @@ class ExecutionTracker:
         if owner not in self._owner_names:
             return
         source = self._resolve_source(owner, name)
-        if source:
+        if source and not is_keyword_mocked(source, name):
             self._executed.setdefault(source, set()).add(name)
 
     def _resolve_source(self, owner: str, name: str) -> Optional[str]:

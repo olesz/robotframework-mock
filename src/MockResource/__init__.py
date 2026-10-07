@@ -1,5 +1,6 @@
 """Mock resource for Robot Framework keyword mocking in unit tests."""
 # pylint: disable=invalid-name
+import weakref
 from typing import Any, Callable
 from unittest.mock import Mock
 
@@ -9,7 +10,12 @@ from robot.running import Return
 from robot.running.namespace import Namespace
 from robot.utils import split_from_equals
 
-from _mock_core import CallInspectionMixin
+from _mock_core import (
+    CallInspectionMixin,
+    normalize_keyword_name,
+    register_mocked_keyword,
+    unregister_mocked_keyword,
+)
 
 # Robot resolves the values of a RETURN statement as variable expressions, so a
 # mocked return value cannot be embedded in one directly - anything that is not
@@ -17,6 +23,74 @@ from _mock_core import CallInspectionMixin
 # and the injected RETURN refers to it, which lets a mock return any Python
 # object (a query result set, a parsed JSON body, a list of pods...).
 RETURN_VARIABLE = '${__mock_resource_return__}'
+
+# Namespace.get_runner is patched once per process rather than once per
+# MockResource instance. Patching per instance chained a new wrapper around the
+# previous one for every library import, and nothing ever restored them, so
+# every keyword lookup in the run paid for each import. The single wrapper
+# consults the live instances below and is inert when none of them has mocks.
+_INSTANCES = []
+_ORIGINAL_GET_RUNNER = None
+
+
+def _live_instances():
+    """Return the MockResource instances that are still alive.
+
+    Instances are held weakly so a library instance going out of scope does not
+    keep its mocks alive, and dead references are pruned on access.
+
+    Returns:
+        The live instances, in the order they were created.
+    """
+    live = []
+    for reference in list(_INSTANCES):
+        instance = reference()
+        if instance is None:
+            _INSTANCES.remove(reference)
+        else:
+            live.append(instance)
+    return live
+
+
+def _install_shared_patch():
+    """Patch ``Namespace.get_runner`` once, routing to all live instances."""
+    global _ORIGINAL_GET_RUNNER  # pylint: disable=global-statement
+    if _ORIGINAL_GET_RUNNER is not None:
+        return
+    _ORIGINAL_GET_RUNNER = Namespace.get_runner
+    original_get_runner = _ORIGINAL_GET_RUNNER
+
+    def patched_get_runner(self, keyword_name, recommend_on_failure):
+        keyword_runner = original_get_runner(self, keyword_name, recommend_on_failure)
+        resource_file = getattr(keyword_runner.keyword, "source", None)
+
+        for instance in _live_instances():
+            if instance.source not in str(resource_file):
+                continue
+            mock = instance.mocks.get(normalize_keyword_name(keyword_name))
+            if not mock:
+                continue
+            original_run = keyword_runner.run
+
+            def patched_run(data, result, context, run,
+                            _mock=mock, _original_run=original_run):
+                args, kwargs = _resolve_arguments(
+                    keyword_runner.keyword, data, context
+                )
+                mock_result = _mock(*args, **kwargs)
+                # Test scope, so the value is visible to the keyword's own
+                # body even when the mocked keyword is called from inside
+                # another keyword rather than directly from the test.
+                context.variables.set_test(RETURN_VARIABLE, mock_result)
+                keyword_runner.keyword.body._items = [Return(values=[RETURN_VARIABLE])]  # pylint: disable=protected-access
+                return _original_run(data, result, context, run)
+
+            keyword_runner.run = patched_run
+            break
+
+        return keyword_runner
+
+    Namespace.get_runner = patched_get_runner
 
 
 def _resolve_arguments(keyword_obj, data, context):
@@ -72,44 +146,37 @@ class MockResource(CallInspectionMixin):
 
     def __init__(self, source):
         self._source = source
-        self._original_get_runner = Namespace.get_runner
         self._original_items = {}
         self._original_setups = {}
         self._original_teardowns = {}
+        self._mocked_sources = {}
         self._mocks = {}
-        self._install_patch()
+        _INSTANCES.append(weakref.ref(self))
+        _install_shared_patch()
 
-    def _install_patch(self):
-        original_get_runner = self._original_get_runner
-        active_mocks = self._mocks
-        source = self._source
+    @property
+    def source(self):
+        """Return the resource file this instance mocks keywords from."""
+        return self._source
 
-        def patched_get_runner(self, keyword_name, recommend_on_failure):
-            keyword_runner = original_get_runner(self, keyword_name, recommend_on_failure)
-            resource_file = getattr(keyword_runner.keyword, "source", None)
+    @property
+    def mocks(self):
+        """Return the active mocks, keyed by normalized keyword name."""
+        return self._mocks
 
-            if source not in str(resource_file):
-                return keyword_runner
+    def _mock_key(self, keyword_name: str) -> str:
+        """Return the ``self._mocks`` key for *keyword_name*.
 
-            mock = active_mocks.get(keyword_name)
-            if mock:
-                original_run = keyword_runner.run
-                def patched_run(data, result, context, run):
-                    args, kwargs = _resolve_arguments(
-                        keyword_runner.keyword, data, context
-                    )
-                    mock_result = mock(*args, **kwargs)
-                    # Test scope, so the value is visible to the keyword's own
-                    # body even when the mocked keyword is called from inside
-                    # another keyword rather than directly from the test.
-                    context.variables.set_test(RETURN_VARIABLE, mock_result)
-                    keyword_runner.keyword.body._items = [Return(values=[RETURN_VARIABLE])]  # pylint: disable=protected-access
-                    return original_run(data, result, context, run)
-                keyword_runner.run = patched_run
+        Mocks are keyed the way Robot Framework matches keyword names, so
+        inspecting a call works whatever case or spacing the test used.
 
-            return keyword_runner
+        Args:
+            keyword_name: Keyword name as written in the test.
 
-        Namespace.get_runner = patched_get_runner
+        Returns:
+            The normalized name used as the mock key.
+        """
+        return normalize_keyword_name(keyword_name)
 
     @keyword
     def mock_keyword(
@@ -155,6 +222,7 @@ class MockResource(CallInspectionMixin):
             )
 
         self._original_items[keyword_name] = keyword_runner.keyword.body._items  # pylint: disable=protected-access
+        self._mocked_sources[keyword_name] = resource_file
         if skip_setup:
             self._original_setups[keyword_name] = keyword_runner.keyword.setup
             keyword_runner.keyword.setup = None
@@ -162,7 +230,10 @@ class MockResource(CallInspectionMixin):
             self._original_teardowns[keyword_name] = keyword_runner.keyword.teardown
             keyword_runner.keyword.teardown = None
         mock = Mock(return_value=return_value, side_effect=side_effect)
-        self._mocks[keyword_name] = mock
+        self._mocks[normalize_keyword_name(keyword_name)] = mock
+        # Tell MockCoverage this keyword's body no longer runs, so it is not
+        # credited with coverage it did not earn.
+        register_mocked_keyword(resource_file, keyword_name)
         return mock
 
     @keyword
@@ -176,6 +247,8 @@ class MockResource(CallInspectionMixin):
             | MockRes.Reset Mocks |
         """
         self._mocks.clear()
+        for keyword_name, source in self._mocked_sources.items():
+            unregister_mocked_keyword(source, keyword_name)
         for keyword_name, items in self._original_items.items():
             keyword_runner = BuiltIn()._namespace.get_runner(keyword_name, True)  # pylint: disable=protected-access
             keyword_runner.keyword.body._items = items  # pylint: disable=protected-access
@@ -188,6 +261,7 @@ class MockResource(CallInspectionMixin):
         self._original_items.clear()
         self._original_setups.clear()
         self._original_teardowns.clear()
+        self._mocked_sources.clear()
 
     @keyword
     def verify_keyword_called(self, keyword_name: str, times: int = None):
@@ -203,9 +277,6 @@ class MockResource(CallInspectionMixin):
         Example:
             | MockDB.Verify Keyword Called | Execute Sql | times=1 |
         """
-        if keyword_name not in self._mocks:
-            raise AssertionError(f"Keyword '{keyword_name}' was not mocked")
-
-        mock = self._mocks[keyword_name]
+        mock = self._get_mock(keyword_name)
         if times is not None and mock.call_count != times:
             raise AssertionError(f"Expected {times} calls, got {mock.call_count}")
