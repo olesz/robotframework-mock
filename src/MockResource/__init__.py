@@ -74,6 +74,8 @@ class MockResource(CallInspectionMixin):
         self._source = source
         self._original_get_runner = Namespace.get_runner
         self._original_items = {}
+        self._original_setups = {}
+        self._original_teardowns = {}
         self._mocks = {}
         self._install_patch()
 
@@ -112,22 +114,37 @@ class MockResource(CallInspectionMixin):
     @keyword
     def mock_keyword(
         self, keyword_name: str,
-        return_value: Any = None, side_effect: Callable = None
+        return_value: Any = None, side_effect: Callable = None,
+        skip_setup: bool = False, skip_teardown: bool = False
     ):
         """Mock a keyword from the resource file.
-        
+
+        Only the keyword's body is replaced. Its ``[Setup]`` and ``[Teardown]``
+        still run by default, which keeps them observable - a test can assert
+        that a teardown released a lock, for example. Suppress them when the
+        mocked keyword's own setup or teardown is an implementation detail the
+        test should not depend on, typically because it cleans up state that the
+        replaced body would have created and therefore fails.
+
         Args:
             keyword_name: Name of the keyword to mock
-            return_value: Value to return when the keyword is called
+            return_value: Value to return when the keyword is called. May be any
+                Python object.
             side_effect: Callable to execute instead of returning a value.
                 Receives the call's resolved arguments, the same way a
                 ``MockLibrary`` side effect does.
+            skip_setup: Do not run the keyword's ``[Setup]`` while mocked.
+            skip_teardown: Do not run the keyword's ``[Teardown]`` while mocked.
 
         Returns:
             The :class:`unittest.mock.Mock` backing the keyword.
 
+        Raises:
+            AttributeError: If the keyword is not found in the resource file.
+
         Example:
             | MockRes.Mock Keyword | My Keyword | return_value=test_data |
+            | MockRes.Mock Keyword | Init Client | skip_teardown=${True} |
         """
         keyword_runner = BuiltIn()._namespace.get_runner(keyword_name, True)  # pylint: disable=protected-access
         resource_file = getattr(keyword_runner.keyword, "source", None)
@@ -136,6 +153,12 @@ class MockResource(CallInspectionMixin):
             raise AttributeError("fKeyword '{keyword_name}' not found in {self._source}")
 
         self._original_items[keyword_name] = keyword_runner.keyword.body._items  # pylint: disable=protected-access
+        if skip_setup:
+            self._original_setups[keyword_name] = keyword_runner.keyword.setup
+            keyword_runner.keyword.setup = None
+        if skip_teardown:
+            self._original_teardowns[keyword_name] = keyword_runner.keyword.teardown
+            keyword_runner.keyword.teardown = None
         mock = Mock(return_value=return_value, side_effect=side_effect)
         self._mocks[keyword_name] = mock
         return mock
@@ -144,8 +167,9 @@ class MockResource(CallInspectionMixin):
     def reset_mocks(self):
         """Reset all mocks to their original implementations.
         
-        Restores all mocked keywords to their original behavior.
-        
+        Restores all mocked keywords to their original behavior, including any
+        ``[Setup]`` or ``[Teardown]`` that was suppressed while mocked.
+
         Example:
             | MockRes.Reset Mocks |
         """
@@ -153,7 +177,15 @@ class MockResource(CallInspectionMixin):
         for keyword_name, items in self._original_items.items():
             keyword_runner = BuiltIn()._namespace.get_runner(keyword_name, True)  # pylint: disable=protected-access
             keyword_runner.keyword.body._items = items  # pylint: disable=protected-access
+        for keyword_name, setup in self._original_setups.items():
+            keyword_runner = BuiltIn()._namespace.get_runner(keyword_name, True)  # pylint: disable=protected-access
+            keyword_runner.keyword.setup = setup
+        for keyword_name, teardown in self._original_teardowns.items():
+            keyword_runner = BuiltIn()._namespace.get_runner(keyword_name, True)  # pylint: disable=protected-access
+            keyword_runner.keyword.teardown = teardown
         self._original_items.clear()
+        self._original_setups.clear()
+        self._original_teardowns.clear()
 
     @keyword
     def verify_keyword_called(self, keyword_name: str, times: int = None):

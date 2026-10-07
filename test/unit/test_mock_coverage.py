@@ -271,6 +271,11 @@ def test_parse_defined_keywords_reads_real_resource():
         "Resource Keyword Test With Argument",
         "Resource Keyword Test With Named Arguments",
         "Resource Keyword Returning Data",
+        "Resource Keyword With Setup And Teardown",
+        "Record Lifecycle Step",
+        "Reset Lifecycle Steps",
+        "Pretend Body Ran",
+        "Release Registered Body",
     ]
 
 

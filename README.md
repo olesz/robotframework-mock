@@ -304,6 +304,29 @@ ${rows}=    Evaluate    [['Europe/Budapest']]
 MockRes.Mock Keyword    Run Query    return_value=${rows}
 ```
 
+### Mocked keyword setup and teardown
+
+`MockResource` replaces only a keyword's **body**. Its `[Setup]` and `[Teardown]`
+still run, which keeps them observable — a test can assert that a teardown
+released a lock, for instance.
+
+That is a problem when the teardown cleans up state the replaced body would have
+created, because it then fails on the mocked call. Suppress it per mock:
+
+```robot
+# Init Client acquires a lock in its body and releases it in its teardown.
+# Without the body there is no lock to release, so skip the teardown.
+MockRes.Mock Keyword    Init Client    return_value=alias    skip_teardown=${True}
+MockRes.Mock Keyword    Init Client    return_value=alias    skip_setup=${True}
+```
+
+Both default to `False`, so existing tests are unaffected. `Reset Mocks`
+restores a suppressed setup or teardown along with the body.
+
+Prefer the default when the setup or teardown is part of the contract you are
+testing, and skip it when it is an implementation detail of a keyword the test
+is only standing in for.
+
 ### Reset Mocks
 
 Restore all mocked keywords to their original implementations.

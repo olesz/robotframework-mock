@@ -136,6 +136,67 @@ Test Return Value Scalars Are Unchanged
     ${empty}=    Resource Keyword Returning Data
     Should Be Equal    ${empty}    ${None}
 
+Test Setup And Teardown Run By Default
+    [Documentation]    Only the body is replaced, so the keyword's own setup and teardown still
+    ...    run and stay observable to the test.
+    Reset Lifecycle Steps
+    Pretend Body Ran
+    MockResourceTest.Mock Keyword    Resource Keyword With Setup And Teardown    return_value=mocked
+
+    ${result}=    Resource Keyword With Setup And Teardown
+
+    Should Be Equal    ${result}    mocked
+    Should Contain     ${LIFECYCLE_STEPS}    setup
+    Should Contain     ${LIFECYCLE_STEPS}    teardown
+
+Test Teardown Fails Without Skip
+    [Documentation]    Without skipping, a teardown that depends on what the replaced body did
+    ...    fails the mocked call. This is the failure skip_teardown exists to avoid.
+    Reset Lifecycle Steps
+    MockResourceTest.Mock Keyword    Resource Keyword With Setup And Teardown    return_value=mocked
+
+    Run Keyword And Expect Error    *The body never registered itself*
+    ...    Resource Keyword With Setup And Teardown
+
+Test Teardown Can Be Skipped
+    [Documentation]    A teardown that cleans up state the replaced body would have created
+    ...    can be suppressed, instead of failing the mocked call.
+    Reset Lifecycle Steps
+    MockResourceTest.Mock Keyword    Resource Keyword With Setup And Teardown
+    ...    return_value=mocked    skip_teardown=${True}
+
+    ${result}=    Resource Keyword With Setup And Teardown
+
+    Should Be Equal        ${result}             mocked
+    Should Not Contain     ${LIFECYCLE_STEPS}    teardown
+    Should Contain         ${LIFECYCLE_STEPS}    setup
+
+Test Setup Can Be Skipped
+    [Documentation]    The keyword's setup can be suppressed independently of its teardown.
+    Reset Lifecycle Steps
+    Pretend Body Ran
+    MockResourceTest.Mock Keyword    Resource Keyword With Setup And Teardown
+    ...    return_value=mocked    skip_setup=${True}
+
+    Resource Keyword With Setup And Teardown
+
+    Should Not Contain    ${LIFECYCLE_STEPS}    setup
+    Should Contain        ${LIFECYCLE_STEPS}    teardown
+
+Test Reset Restores Setup And Teardown
+    [Documentation]    After resetting, a suppressed setup and teardown run again.
+    Reset Lifecycle Steps
+    MockResourceTest.Mock Keyword    Resource Keyword With Setup And Teardown
+    ...    return_value=mocked    skip_setup=${True}    skip_teardown=${True}
+    Resource Keyword With Setup And Teardown
+    MockResourceTest.Reset Mocks
+
+    ${result}=    Resource Keyword With Setup And Teardown
+
+    Should Be Equal    ${result}    original
+    Should Contain     ${LIFECYCLE_STEPS}    setup
+    Should Contain     ${LIFECYCLE_STEPS}    teardown
+
 Test Side Effect Receives Resolved Arguments
     [Documentation]    A side effect is called with the resolved arguments, so it can
     ...    branch on real values instead of raw variable text.
