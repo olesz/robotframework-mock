@@ -227,6 +227,75 @@ Test Call Inspection Matches Regardless Of Case
 
     Should Be Equal As Integers    ${count}    1
 
+Test Call Order Across Mocked Keywords
+    [Documentation]    The order in which different mocked keywords were called is reported, so
+    ...    a sequence such as "connect before querying" can be asserted. An individual mock's
+    ...    call history cannot show this, since it knows nothing about its siblings.
+    MockResourceTest.Mock Keyword    Resource Keyword Test                 return_value=first
+    MockResourceTest.Mock Keyword    Resource Keyword Returning Data       return_value=second
+
+    Resource Keyword Returning Data
+    Resource Keyword Test
+
+    ${order}=    MockResourceTest.Get Keyword Call Order
+    Should Be Equal    ${order}
+    ...    ${{ ['Resource Keyword Returning Data', 'Resource Keyword Test'] }}
+
+Test Call Order Records Repeated Calls
+    [Documentation]    A keyword called more than once appears once per call, so a repeated
+    ...    step is visible rather than collapsed.
+    MockResourceTest.Mock Keyword    Resource Keyword Test             return_value=a
+    MockResourceTest.Mock Keyword    Resource Keyword Returning Data   return_value=b
+
+    Resource Keyword Test
+    Resource Keyword Returning Data
+    Resource Keyword Test
+
+    ${order}=    MockResourceTest.Get Keyword Call Order
+    Should Be Equal    ${order}
+    ...    ${{ ['Resource Keyword Test', 'Resource Keyword Returning Data', 'Resource Keyword Test'] }}
+
+Test Call Order Omits Keywords That Were Never Called
+    [Documentation]    Mocking a keyword does not put it in the order; only calls do.
+    MockResourceTest.Mock Keyword    Resource Keyword Test             return_value=a
+    MockResourceTest.Mock Keyword    Resource Keyword Returning Data   return_value=b
+
+    Resource Keyword Test
+
+    ${order}=    MockResourceTest.Get Keyword Call Order
+    Should Be Equal    ${order}    ${{ ['Resource Keyword Test'] }}
+
+Test Call Order Is Empty Before Any Call
+    [Documentation]    With nothing called the order is empty rather than undefined.
+    MockResourceTest.Mock Keyword    Resource Keyword Test    return_value=a
+
+    ${order}=    MockResourceTest.Get Keyword Call Order
+
+    Should Be Empty    ${order}
+
+Test Call Order Is Forgotten On Reset
+    [Documentation]    Resetting clears the recorded order, so one test cannot see the calls of
+    ...    a previous one.
+    MockResourceTest.Mock Keyword    Resource Keyword Test    return_value=a
+    Resource Keyword Test
+    MockResourceTest.Reset Mocks
+
+    ${order}=    MockResourceTest.Get Keyword Call Order
+
+    Should Be Empty    ${order}
+
+Test Call Order Ignores Calls On A Returned Object
+    [Documentation]    Calling a method on a mocked keyword's return value is not a keyword
+    ...    call, so it must not appear in the order.
+    ${response}=    Evaluate    types.SimpleNamespace(json=lambda: {'ok': True})    modules=types
+    MockResourceTest.Mock Keyword    Resource Keyword Returning Data    return_value=${response}
+
+    ${result}=    Resource Keyword Returning Data
+    Call Method    ${result}    json
+
+    ${order}=    MockResourceTest.Get Keyword Call Order
+    Should Be Equal    ${order}    ${{ ['Resource Keyword Returning Data'] }}
+
 Test Side Effect Receives Resolved Arguments
     [Documentation]    A side effect is called with the resolved arguments, so it can
     ...    branch on real values instead of raw variable text.

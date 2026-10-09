@@ -78,6 +78,21 @@ Test Call Inspection Of Last Call
     ${args}=    MockBuiltin.Get Keyword Call Args    Convert To Binary    index=-1
     Should Be Equal    ${args}[0]    last
 
+Test Library Call Order Across Mocked Keywords
+    [Documentation]    Ordering works for library keywords as well, so a sequence spanning two
+    ...    keywords of the same library can be asserted.
+    MockStatic.Mock Keyword     Execute Query        return_value=rows
+    MockBuiltin.Mock Keyword    Convert To Binary    return_value=mocked
+
+    Execute Query    SELECT 1
+    Convert To Binary    aaa
+    Execute Query    SELECT 2
+
+    ${static_order}=    MockStatic.Get Keyword Call Order
+    ${builtin_order}=   MockBuiltin.Get Keyword Call Order
+    Should Be Equal    ${static_order}     ${{ ['Execute Query', 'Execute Query'] }}
+    Should Be Equal    ${builtin_order}    ${{ ['Convert To Binary'] }}
+
 Test Mock With Side Effect
     [Documentation]    Test mocking with side effect function
     ${side_effect}=    Evaluate    lambda time, *args, **kwargs: 'morning' if '08:00' in time else 'evening'

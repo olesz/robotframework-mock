@@ -231,6 +231,7 @@ class MockResource(CallInspectionMixin):
             keyword_runner.keyword.teardown = None
         mock = Mock(return_value=return_value, side_effect=side_effect)
         self._mocks[normalize_keyword_name(keyword_name)] = mock
+        self._track_call_order(keyword_name, mock)
         # Tell MockCoverage this keyword's body no longer runs, so it is not
         # credited with coverage it did not earn.
         register_mocked_keyword(resource_file, keyword_name)
@@ -247,6 +248,7 @@ class MockResource(CallInspectionMixin):
             | MockRes.Reset Mocks |
         """
         self._mocks.clear()
+        self._reset_call_order()
         for keyword_name, source in self._mocked_sources.items():
             unregister_mocked_keyword(source, keyword_name)
         for keyword_name, items in self._original_items.items():

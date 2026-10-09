@@ -160,6 +160,7 @@ class MockLibrary(CallInspectionMixin):
         # Create Mock object with specified behavior
         mock = Mock(return_value=return_value, side_effect=side_effect)
         self._mocks[method_name] = mock
+        self._track_call_order(keyword_name, mock)
 
         # Replace the method on the class or instance
         try:
@@ -194,6 +195,7 @@ class MockLibrary(CallInspectionMixin):
 
         # Clear all tracking dictionaries
         self._mocks.clear()
+        self._reset_call_order()
         self._original_methods.clear()
 
     @keyword

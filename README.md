@@ -38,6 +38,7 @@ pip install -r requirements-dev.txt
 - Support for keywords with custom names via @keyword decorator
 - Verify keyword calls and call counts
 - Inspect and verify the arguments a mocked keyword was called with
+- Inspect the order in which mocked keywords were called
 - Measure resource-file keyword coverage with configurable thresholds
 - Simple API with three main keywords
 
@@ -409,6 +410,32 @@ Return how many times a mocked keyword was called.
 ```robot
 ${count}=    MockDB.Get Keyword Call Count    execute_sql
 ```
+
+### Get Keyword Call Order
+
+Return the mocked keywords in the order they were called, as a list of names.
+
+Covers keywords mocked through the same library instance. This is what
+establishes ordering *between* different mocks — an individual mock's call
+history cannot show how it interleaved with its siblings.
+
+A keyword called more than once appears once per call. Keywords that were mocked
+but never called do not appear, and calls made on a keyword's return value are
+not included.
+
+**Example:**
+```robot
+MockRes.Mock Keyword    Init Client    return_value=alias
+MockRes.Mock Keyword    Run Query      return_value=${rows}
+
+Fetch Data
+
+${order}=    MockRes.Get Keyword Call Order
+Should Be Equal    ${order}    ${{ ['Init Client', 'Run Query'] }}
+```
+
+Use this instead of wiring a `side_effect` that appends to a list, which is the
+only way to observe ordering otherwise.
 
 ## How It Works
 

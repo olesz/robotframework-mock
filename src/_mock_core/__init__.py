@@ -10,7 +10,7 @@ apart.
 # pylint: disable=invalid-name
 import os
 from typing import Any, Dict, List
-from unittest.mock import call
+from unittest.mock import call, Mock
 
 from robot.api.deco import keyword
 from robot.utils import normalize
@@ -87,9 +87,36 @@ class CallInspectionMixin:
     - ``self._mocks``: mapping of mock key -> :class:`unittest.mock.Mock`
     - ``self._mock_key(keyword_name)``: the ``self._mocks`` key for a keyword
       name, in case the library does not key by the name as written
+    - ``self._call_manager`` / ``self._display_names``: created on first use by
+      :meth:`_track_call_order`, which the host calls for each new mock
     """
 
     _mocks: Dict[str, Any]
+
+    def _track_call_order(self, keyword_name: str, mock) -> None:
+        """Attach a mock so its calls are ordered against its siblings.
+
+        ``unittest.mock`` records calls to attached children on the parent in
+        invocation order, which is the only way to establish the relative order
+        of calls to *different* mocks - each mock's own ``call_args_list`` knows
+        nothing about the others.
+
+        Args:
+            keyword_name: Keyword name as written when mocking.
+            mock: The mock backing that keyword.
+        """
+        if not hasattr(self, '_call_manager'):
+            self._call_manager = Mock()
+            self._display_names = {}
+        key = normalize_keyword_name(keyword_name)
+        self._display_names[key] = keyword_name
+        self._call_manager.attach_mock(mock, key)
+
+    def _reset_call_order(self) -> None:
+        """Forget the recorded call order, called when mocks are reset."""
+        if hasattr(self, '_call_manager'):
+            del self._call_manager
+            del self._display_names
 
     def _mock_key(self, keyword_name: str) -> str:
         """Return the ``self._mocks`` key for *keyword_name*.
@@ -143,6 +170,40 @@ class CallInspectionMixin:
                 f"'{keyword_name}', it was called {len(calls)} time(s)"
             )
         return calls[index]
+
+    @keyword
+    def get_keyword_call_order(self) -> List[str]:
+        """Return the mocked keywords in the order they were called.
+
+        Covers keywords mocked through *this* library instance, which is what
+        establishes ordering between different mocks - an individual mock's
+        call history cannot show how it interleaved with its siblings.
+
+        A keyword called more than once appears once per call. Keywords mocked
+        but never called do not appear at all.
+
+        Returns:
+            Keyword names, as written when mocking, in invocation order.
+
+        Example:
+            | MockRes.Mock Keyword | Init Client | return_value=alias |
+            | MockRes.Mock Keyword | Run Query | return_value=${rows} |
+            | Fetch Data |
+            | ${order}= | MockRes.Get Keyword Call Order |
+            | Should Be Equal | ${order} | ${{ ['Init Client', 'Run Query'] }} |
+        """
+        if not hasattr(self, '_call_manager'):
+            return []
+        order = []
+        for recorded in self._call_manager.mock_calls:
+            name = recorded[0]
+            # Skip nested calls such as "run_query().json()", which belong to
+            # the returned object rather than to a mocked keyword.
+            if not name or '.' in name:
+                continue
+            if name in self._display_names:
+                order.append(self._display_names[name])
+        return order
 
     @keyword
     def get_keyword_call_count(self, keyword_name: str) -> int:
