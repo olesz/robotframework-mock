@@ -8,7 +8,7 @@ from unittest.mock import Mock
 from robot.api.deco import keyword
 from robot.libraries.BuiltIn import BuiltIn
 
-from _mock_core import CallInspectionMixin
+from _mock_core import CallInspectionMixin, normalize_keyword_name
 
 
 def _get_library_instance(library_name_or_alias):
@@ -37,12 +37,16 @@ def _resolve_original_method(lib, method_name, keyword_name):
     try:
         return getattr(lib, method_name), method_name
     except AttributeError:
-        # If not found, search for methods with @keyword decorator custom names
+        # If not found, search for methods with @keyword decorator custom names.
+        # Both names are normalized the way Robot Framework matches keyword
+        # names, so a decorator such as @keyword("Is DNS Entry Resolvable") is
+        # found whatever case, spacing or underscores the test used.
+        wanted = normalize_keyword_name(keyword_name)
         for name, method in inspect.getmembers(
                 lib, inspect.ismethod
         ):
-            if (hasattr(method, 'robot_name') and
-                    method.robot_name.lower() == keyword_name):
+            robot_name = getattr(method, 'robot_name', None)
+            if robot_name and normalize_keyword_name(robot_name) == wanted:
                 return getattr(lib, name), name
 
     return None, method_name
@@ -101,6 +105,12 @@ class MockLibrary(CallInspectionMixin):
         Returns:
             The method name used as the mock key.
         """
+        # A keyword mocked by its @keyword decorator name is stored under the
+        # method name, which does not follow from the keyword name. The
+        # mapping recorded when mocking is the only way back.
+        mapped = self._keyword_methods.get(normalize_keyword_name(keyword_name))
+        if mapped:
+            return mapped
         return keyword_name.lower().replace(' ', '_')
 
     def __init__(self, library_name_or_alias: str, custom_resolver_path: str = None):
@@ -114,6 +124,7 @@ class MockLibrary(CallInspectionMixin):
         """
         self._original_methods = {}
         self._mocks = {}
+        self._keyword_methods = {}
         self._library_instance = _get_library_instance(library_name_or_alias)
         self._custom_resolver = (
             _load_custom_resolver(custom_resolver_path)
@@ -159,6 +170,7 @@ class MockLibrary(CallInspectionMixin):
 
         # Create Mock object with specified behavior
         mock = Mock(return_value=return_value, side_effect=side_effect)
+        self._keyword_methods[normalize_keyword_name(keyword_name)] = method_name
         self._mocks[method_name] = mock
         self._track_call_order(keyword_name, mock)
 
@@ -197,6 +209,7 @@ class MockLibrary(CallInspectionMixin):
         self._mocks.clear()
         self._reset_call_order()
         self._original_methods.clear()
+        self._keyword_methods.clear()
 
     @keyword
     def verify_keyword_called(self, keyword_name: str, times: int = None):
@@ -213,7 +226,7 @@ class MockLibrary(CallInspectionMixin):
             | MockDB.Verify Keyword Called | execute_sql | times=1 |
         """
         # Convert keyword name to method name format
-        method_name = keyword_name.lower().replace(' ', '_')
+        method_name = self._mock_key(keyword_name)
         # Check if the keyword was mocked
         if method_name not in self._mocks:
             raise AssertionError(f"Keyword '{keyword_name}' was not mocked")

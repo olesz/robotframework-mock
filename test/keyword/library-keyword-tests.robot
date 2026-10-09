@@ -78,6 +78,36 @@ Test Call Inspection Of Last Call
     ${args}=    MockBuiltin.Get Keyword Call Args    Convert To Binary    index=-1
     Should Be Equal    ${args}[0]    last
 
+Test Mock Keyword With A Custom Decorator Name
+    [Documentation]    A keyword whose @keyword decorator gives it a name unrelated to its
+    ...    method name is mocked by that keyword name, which is the only name a test author
+    ...    sees. Matching on the method name alone would not find it.
+    MockStatic.Mock Keyword    Is The Target Reachable    return_value=mocked-answer
+
+    ${result}=    Is The Target Reachable    some-host
+
+    Should Be Equal    ${result}    mocked-answer
+
+Test Mock Keyword With A Custom Decorator Name Ignores Case And Spacing
+    [Documentation]    The decorator's name is matched the way Robot matches keyword names, so
+    ...    the test may write it in any case or with underscores.
+    MockStatic.Mock Keyword    is_the_target_reachable    return_value=mocked-answer
+
+    ${result}=    Is The Target Reachable    some-host
+
+    Should Be Equal    ${result}    mocked-answer
+
+Test Call Inspection Works For A Custom Decorator Name
+    [Documentation]    A keyword mocked by its decorator name is still inspectable by that
+    ...    name, so the test never has to know the underlying method name.
+    MockStatic.Mock Keyword    Is The Target Reachable    return_value=mocked-answer
+
+    Is The Target Reachable    some-host
+
+    ${args}=    MockStatic.Get Keyword Call Args    Is The Target Reachable
+    Should Be Equal    ${args}[0]    some-host
+    MockStatic.Verify Keyword Called    Is The Target Reachable    times=1
+
 Test Library Call Order Across Mocked Keywords
     [Documentation]    Ordering works for library keywords as well, so a sequence spanning two
     ...    keywords of the same library can be asserted.

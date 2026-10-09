@@ -10,6 +10,7 @@ Robot Framework versions, so the recorded argument types differ too. ``Convert
 To Binary``, for example, records ``base=16`` as a string up to Robot Framework
 7.3 and as an integer from 7.4 onwards.
 """
+from robot.api.deco import keyword
 
 
 class StaticLibrary:
@@ -27,3 +28,19 @@ class StaticLibrary:
             The two arguments separated by a pipe.
         """
         return f'{query}|{timeout}'
+
+    @keyword('Is The Target Reachable')
+    def check_target_reachability(self, target):
+        """Return the target, under a keyword name unrelated to the method name.
+
+        The ``@keyword`` decorator deliberately gives this a name that does not
+        follow from ``check_target_reachability``, so mocking it only works if
+        the decorator's name is honoured.
+
+        Args:
+            target: Any string.
+
+        Returns:
+            The target unchanged.
+        """
+        return target

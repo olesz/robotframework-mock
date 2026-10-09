@@ -227,6 +227,41 @@ Test Call Inspection Matches Regardless Of Case
 
     Should Be Equal As Integers    ${count}    1
 
+Test Side Effect That Raises Fails The Keyword Catchably
+    [Documentation]    A side effect that raises makes the mocked keyword fail the way a real
+    ...    keyword does, so Run Keyword And Ignore Error can catch it. This is what lets a test
+    ...    drive the error branch of a keyword that guards its dependency.
+    MockResourceTest.Mock Keyword    Resource Keyword Test
+    ...    side_effect=${{ RuntimeError('service unavailable') }}
+
+    ${status}    ${message}=    Run Keyword And Ignore Error    Resource Keyword Test
+
+    Should Be Equal    ${status}     FAIL
+    Should Be Equal    ${message}    service unavailable
+
+Test Side Effect That Raises Can Be Caught By Try Except
+    [Documentation]    The failure is a normal Robot failure, so TRY/EXCEPT matches it on its
+    ...    message like any other.
+    MockResourceTest.Mock Keyword    Resource Keyword Test    side_effect=${{ ValueError('bad input') }}
+
+    TRY
+        Resource Keyword Test
+        Fail    The mocked keyword should have failed.
+    EXCEPT    bad input
+        Log    The raising side effect was caught.
+    END
+
+Test Side Effect That Raises Still Records The Call
+    [Documentation]    A failing call is still a call, so it remains visible to the call
+    ...    inspection keywords.
+    MockResourceTest.Mock Keyword    Resource Keyword Test    side_effect=${{ RuntimeError('nope') }}
+
+    Run Keyword And Ignore Error    Resource Keyword Test    first-argument
+
+    MockResourceTest.Verify Keyword Called    Resource Keyword Test    times=1
+    ${args}=    MockResourceTest.Get Keyword Call Args    Resource Keyword Test
+    Should Be Equal    ${args}[0]    first-argument
+
 Test Call Order Across Mocked Keywords
     [Documentation]    The order in which different mocked keywords were called is reported, so
     ...    a sequence such as "connect before querying" can be asserted. An individual mock's

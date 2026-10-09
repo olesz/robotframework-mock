@@ -305,6 +305,43 @@ ${rows}=    Evaluate    [['Europe/Budapest']]
 MockRes.Mock Keyword    Run Query    return_value=${rows}
 ```
 
+A `side_effect` that is an exception makes the mocked keyword **fail**, which is
+how a test drives the error branch of a keyword that guards its dependency. The
+failure is a normal Robot failure, so `Run Keyword And Ignore Error`, `Run Keyword
+And Return Status` and `TRY`/`EXCEPT` all catch it:
+
+```robot
+MockRes.Mock Keyword    Run Query    side_effect=${{ RuntimeError('db unavailable') }}
+
+${status}    ${message}=    Run Keyword And Ignore Error    Run Query    SELECT 1
+Should Be Equal    ${status}     FAIL
+Should Be Equal    ${message}    db unavailable
+```
+
+A failing call is still recorded, so `Get Keyword Call Args`, `Verify Keyword
+Called` and `Get Keyword Call Order` include it.
+
+### Keywords with a custom name
+
+`MockLibrary` finds a library keyword by the name a test author actually writes,
+including when `@keyword` gives it a name that does not follow from the method
+name:
+
+```python
+class DnsCacheManager:
+    @keyword('Is DNS Entry Resolvable')
+    def is_dns_cache_entry_resolvable(self, domain_name):
+        ...
+```
+
+```robot
+MockDns.Mock Keyword    Is DNS Entry Resolvable    return_value=10.0.0.1
+${args}=    MockDns.Get Keyword Call Args    Is DNS Entry Resolvable
+```
+
+Mocking and inspecting both use the keyword name; the underlying method name is
+never needed.
+
 ### Mocked keyword setup and teardown
 
 `MockResource` replaces only a keyword's **body**. Its `[Setup]` and `[Teardown]`

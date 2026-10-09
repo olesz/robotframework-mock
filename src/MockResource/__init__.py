@@ -6,6 +6,7 @@ from unittest.mock import Mock
 
 from robot.api.deco import keyword
 from robot.libraries.BuiltIn import BuiltIn
+from robot.errors import ExecutionFailed
 from robot.running import Return
 from robot.running.namespace import Namespace
 from robot.utils import split_from_equals
@@ -77,7 +78,16 @@ def _install_shared_patch():
                 args, kwargs = _resolve_arguments(
                     keyword_runner.keyword, data, context
                 )
-                mock_result = _mock(*args, **kwargs)
+                # A side effect that raises must fail the keyword the way a
+                # real one does, so TRY/EXCEPT and Run Keyword And Ignore
+                # Error can catch it. Without this the exception escapes the
+                # runner uncaught and aborts the test instead.
+                try:
+                    mock_result = _mock(*args, **kwargs)
+                except ExecutionFailed:
+                    raise
+                except Exception as error:  # pylint: disable=broad-except
+                    raise ExecutionFailed(str(error)) from error
                 # Test scope, so the value is visible to the keyword's own
                 # body even when the mocked keyword is called from inside
                 # another keyword rather than directly from the test.
