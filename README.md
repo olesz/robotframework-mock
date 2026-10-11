@@ -342,6 +342,23 @@ ${args}=    MockDns.Get Keyword Call Args    Is DNS Entry Resolvable
 Mocking and inspecting both use the keyword name; the underlying method name is
 never needed.
 
+### Branches that are not taken
+
+Robot runs the body of **every** `IF`/`ELSE` branch and marks the ones not taken
+as NOT RUN. A mocked keyword in a skipped branch is not recorded as called, so a
+test can assert which branch a keyword chose:
+
+```robot
+MockRes.Mock Keyword    Read From Postgres    return_value=${rows}
+MockRes.Mock Keyword    Read From Geode       return_value=${rows}
+
+Fetch Data
+
+MockRes.Verify Keyword Called    Read From Geode    times=0
+```
+
+This holds for the call count, the recorded arguments and the call order alike.
+
 ### Mocked keyword setup and teardown
 
 `MockResource` replaces only a keyword's **body**. Its `[Setup]` and `[Teardown]`

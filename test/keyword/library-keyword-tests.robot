@@ -108,6 +108,23 @@ Test Call Inspection Works For A Custom Decorator Name
     Should Be Equal    ${args}[0]    some-host
     MockStatic.Verify Keyword Called    Is The Target Reachable    times=1
 
+Test A Not Taken Branch Does Not Record A Library Call
+    [Documentation]    A mocked library keyword in a skipped IF/ELSE branch is not recorded as
+    ...    called either, so branch-selection assertions behave the same for both libraries.
+    MockStatic.Mock Keyword     Execute Query        return_value=rows
+    MockBuiltin.Mock Keyword    Convert To Binary    return_value=mocked
+
+    IF    ${True}
+        Execute Query    SELECT 1
+    ELSE
+        Convert To Binary    aaa
+    END
+
+    ${taken}=      MockStatic.Get Keyword Call Count     Execute Query
+    ${skipped}=    MockBuiltin.Get Keyword Call Count    Convert To Binary
+    Should Be Equal As Integers    ${taken}      1
+    Should Be Equal As Integers    ${skipped}    0
+
 Test Library Call Order Across Mocked Keywords
     [Documentation]    Ordering works for library keywords as well, so a sequence spanning two
     ...    keywords of the same library can be asserted.

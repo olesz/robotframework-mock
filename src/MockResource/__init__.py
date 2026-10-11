@@ -75,6 +75,13 @@ def _install_shared_patch():
 
             def patched_run(data, result, context, run,
                             _mock=mock, _original_run=original_run):
+                # Robot runs the body of *every* IF/ELSE branch and passes
+                # run=False for the ones not taken, so they are reported as
+                # NOT RUN. Calling the mock regardless would record a call for
+                # a keyword that never executed, which would corrupt the call
+                # count, arguments and order a test inspects.
+                if not run:
+                    return _original_run(data, result, context, run)
                 args, kwargs = _resolve_arguments(
                     keyword_runner.keyword, data, context
                 )
