@@ -167,6 +167,7 @@ class MockResource(CallInspectionMixin):
         self._original_setups = {}
         self._original_teardowns = {}
         self._mocked_sources = {}
+        self._mocked_names = {}
         self._mocks = {}
         _INSTANCES.append(weakref.ref(self))
         _install_shared_patch()
@@ -195,6 +196,21 @@ class MockResource(CallInspectionMixin):
         """
         return normalize_keyword_name(keyword_name)
 
+    def _runner_for(self, key: str):
+        """Return the keyword runner for an already-mocked keyword.
+
+        The restore maps are keyed by normalized name, but ``get_runner`` needs
+        a name to look up, so the name the mock was created with is kept
+        alongside them.
+
+        Args:
+            key: Normalized keyword name, as stored in the restore maps.
+
+        Returns:
+            The Robot Framework runner for that keyword.
+        """
+        return BuiltIn()._namespace.get_runner(self._mocked_names[key], True)  # pylint: disable=protected-access
+
     @keyword
     def mock_keyword(
         self, keyword_name: str,
@@ -209,6 +225,13 @@ class MockResource(CallInspectionMixin):
         mocked keyword's own setup or teardown is an implementation detail the
         test should not depend on, typically because it cleans up state that the
         replaced body would have created and therefore fails.
+
+        Mocking the same keyword again replaces the mock and leaves the saved
+        original untouched, so ``Reset Mocks`` still restores the real keyword.
+        The call count and recorded arguments start from zero with the new mock.
+        ``skip_setup`` and ``skip_teardown`` apply as given on every call, so
+        re-mocking without them puts a previously suppressed setup or teardown
+        back.
 
         Args:
             keyword_name: Name of the keyword to mock
@@ -238,16 +261,32 @@ class MockResource(CallInspectionMixin):
                 f"Keyword '{keyword_name}' not found in {self._source}"
             )
 
-        self._original_items[keyword_name] = keyword_runner.keyword.body._items  # pylint: disable=protected-access
-        self._mocked_sources[keyword_name] = resource_file
+        key = normalize_keyword_name(keyword_name)
+        # Capture the pre-mock state once per keyword. Re-mocking must not
+        # overwrite it: by then the body may already be the injected RETURN, so
+        # saving it again would make Reset Mocks "restore" the mock rather than
+        # the real body - and permanently, because a resource keyword object is
+        # shared for the whole run, so every later suite gets the mock too.
+        # Keyed by the normalized name so two spellings of one keyword are one
+        # entry. MockLibrary is immune by construction: it keys the saved
+        # original on the resolved method rather than on the name as written.
+        if key not in self._original_items:
+            self._mocked_names[key] = keyword_name
+            self._original_items[key] = keyword_runner.keyword.body._items  # pylint: disable=protected-access
+            self._mocked_sources[key] = resource_file
         if skip_setup:
-            self._original_setups[keyword_name] = keyword_runner.keyword.setup
+            self._original_setups.setdefault(key, keyword_runner.keyword.setup)
             keyword_runner.keyword.setup = None
+        elif key in self._original_setups:
+            # Re-mocked without skip_setup, so the setup is wanted back.
+            keyword_runner.keyword.setup = self._original_setups.pop(key)
         if skip_teardown:
-            self._original_teardowns[keyword_name] = keyword_runner.keyword.teardown
+            self._original_teardowns.setdefault(key, keyword_runner.keyword.teardown)
             keyword_runner.keyword.teardown = None
+        elif key in self._original_teardowns:
+            keyword_runner.keyword.teardown = self._original_teardowns.pop(key)
         mock = Mock(return_value=return_value, side_effect=side_effect)
-        self._mocks[normalize_keyword_name(keyword_name)] = mock
+        self._mocks[key] = mock
         self._track_call_order(keyword_name, mock)
         # Tell MockCoverage this keyword's body no longer runs, so it is not
         # credited with coverage it did not earn.
@@ -266,21 +305,19 @@ class MockResource(CallInspectionMixin):
         """
         self._mocks.clear()
         self._reset_call_order()
-        for keyword_name, source in self._mocked_sources.items():
-            unregister_mocked_keyword(source, keyword_name)
-        for keyword_name, items in self._original_items.items():
-            keyword_runner = BuiltIn()._namespace.get_runner(keyword_name, True)  # pylint: disable=protected-access
-            keyword_runner.keyword.body._items = items  # pylint: disable=protected-access
-        for keyword_name, setup in self._original_setups.items():
-            keyword_runner = BuiltIn()._namespace.get_runner(keyword_name, True)  # pylint: disable=protected-access
-            keyword_runner.keyword.setup = setup
-        for keyword_name, teardown in self._original_teardowns.items():
-            keyword_runner = BuiltIn()._namespace.get_runner(keyword_name, True)  # pylint: disable=protected-access
-            keyword_runner.keyword.teardown = teardown
+        for key, source in self._mocked_sources.items():
+            unregister_mocked_keyword(source, self._mocked_names[key])
+        for key, items in self._original_items.items():
+            self._runner_for(key).keyword.body._items = items  # pylint: disable=protected-access
+        for key, setup in self._original_setups.items():
+            self._runner_for(key).keyword.setup = setup
+        for key, teardown in self._original_teardowns.items():
+            self._runner_for(key).keyword.teardown = teardown
         self._original_items.clear()
         self._original_setups.clear()
         self._original_teardowns.clear()
         self._mocked_sources.clear()
+        self._mocked_names.clear()
 
     @keyword
     def verify_keyword_called(self, keyword_name: str, times: int = None):

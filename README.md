@@ -376,7 +376,9 @@ MockRes.Mock Keyword    Init Client    return_value=alias    skip_setup=${True}
 ```
 
 Both default to `False`, so existing tests are unaffected. `Reset Mocks`
-restores a suppressed setup or teardown along with the body.
+restores a suppressed setup or teardown along with the body, and so does
+re-mocking the keyword without the flag — see
+[Re-mocking the same keyword](#re-mocking-the-same-keyword).
 
 Prefer the default when the setup or teardown is part of the contract you are
 testing, and skip it when it is an implementation detail of a keyword the test
@@ -545,6 +547,31 @@ MockResource patches Robot Framework's keyword execution:
 4. Replaces keyword body with Return statement containing mocked value
 5. Tracks call counts and call arguments for verification
 6. Restores original keyword body on reset
+
+#### Re-mocking the same keyword
+
+Mocking a keyword that is already mocked **replaces the mock and keeps the saved
+original**, so `Reset Mocks` still restores the real keyword. The new mock starts
+with an empty call history, so a call recorded before it was replaced is no
+longer visible to `Verify Keyword Called`, `Get Keyword Call Args` and the rest.
+
+The original is saved on the first mock only, and that matters more here than in
+`MockLibrary`. Step 4 replaces the body lazily, on the first *call*, so a second
+mock that saved the body again would save the injected RETURN as "the original" —
+and `Reset Mocks` would then install that mock permanently. Resource keyword
+objects are shared for the whole run, so every later test and suite would get it
+too, failing with `Variable '${__mock_resource_return__}' not found`.
+
+The name is normalized before it is used as a key, so `Fetch Rows` and
+`fetch_rows` are the same keyword rather than two entries with two "originals".
+
+`skip_setup` and `skip_teardown` apply exactly as given on *every* call, so
+re-mocking without them puts a previously suppressed setup or teardown back:
+
+```robot
+MockRes.Mock Keyword    Init Client    return_value=alias    skip_teardown=${True}
+MockRes.Mock Keyword    Init Client    return_value=other    # the teardown runs again
+```
 
 ### MockCoverage
 
