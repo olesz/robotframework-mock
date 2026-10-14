@@ -29,7 +29,7 @@ Test Order Spans Separate Resource Instances
     Resource Keyword Test 2
 
     ${order}=    Get Global Call Order
-    VAR    @{expected}    Resource Keyword Test 2    Resource Keyword Test
+    VAR    @{expected}=    Resource Keyword Test 2    Resource Keyword Test
     ...    Resource Keyword Test 2
     Should Be Equal    ${order}    ${expected}
 
@@ -43,7 +43,7 @@ Test Order Spans A Resource And A Library
     Resource Keyword Test
 
     ${order}=    Get Global Call Order
-    VAR    @{expected}    Execute Query    Resource Keyword Test
+    VAR    @{expected}=    Execute Query    Resource Keyword Test
     Should Be Equal    ${order}    ${expected}
 
 Test Qualified Order Names The Mocked Target
@@ -56,7 +56,7 @@ Test Qualified Order Names The Mocked Target
     Execute Query    SELECT 1
 
     ${order}=    Get Global Call Order    qualified=${True}
-    VAR    @{expected}    resource-test.resource.Resource Keyword Test
+    VAR    @{expected}=    resource-test.resource.Resource Keyword Test
     ...    StaticLibrary.Execute Query
     Should Be Equal    ${order}    ${expected}
 
@@ -90,7 +90,7 @@ Test Per Instance Reset Keeps The Global Order
     MockFirst.Reset Mocks
 
     ${order}=    Get Global Call Order
-    VAR    @{expected}    Resource Keyword Test    Resource Keyword Test 2
+    VAR    @{expected}=    Resource Keyword Test    Resource Keyword Test 2
     Should Be Equal    ${order}    ${expected}
 
 Test Repeated Calls Appear Once Each
@@ -104,7 +104,7 @@ Test Repeated Calls Appear Once Each
     Resource Keyword Test 2
 
     ${order}=    Get Global Call Order
-    VAR    @{expected}    Resource Keyword Test    Resource Keyword Test
+    VAR    @{expected}=    Resource Keyword Test    Resource Keyword Test
     ...    Resource Keyword Test 2
     Should Be Equal    ${order}    ${expected}
 
@@ -118,7 +118,7 @@ Test Failing Calls Are Recorded
     Resource Keyword Test 2
 
     ${order}=    Get Global Call Order
-    VAR    @{expected}    Resource Keyword Test    Resource Keyword Test 2
+    VAR    @{expected}=    Resource Keyword Test    Resource Keyword Test 2
     Should Be Equal    ${order}    ${expected}
 
 
