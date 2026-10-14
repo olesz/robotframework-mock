@@ -69,7 +69,7 @@ distribution, importing either of them fails:
 rm -rf build/ dist/ src/*.egg-info/
 python -m build
 python -m twine check dist/*
-tar -tzf dist/*.tar.gz | grep -E "(Mock(Library|Resource|Coverage)|_mock_core)/"
+tar -tzf dist/*.tar.gz | grep -E "(Mock(CallOrder|Library|Resource|Coverage)|_mock_core)/"
 ```
 
 ### 3. Commit, tag and push
@@ -89,7 +89,7 @@ Watch the run under the repository's Actions tab.
 
 ```bash
 pip install --upgrade robotframework-mock
-python -c "import MockLibrary, MockResource, MockCoverage; print('ok')"
+python -c "import MockLibrary, MockResource, MockCoverage, MockCallOrder; print('ok')"
 ```
 
 > **Behaviour change to call out in the release notes (0.4.0 → 0.5.0)**

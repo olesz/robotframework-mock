@@ -38,7 +38,8 @@ jobs:
           # If any of these is missing from the distribution, importing the
           # library fails at runtime, and nothing else in CI would catch it
           # because this workflow does not run the test suites.
-          EXPECTED = {"MockCoverage", "MockLibrary", "MockResource", "_mock_core"}
+          EXPECTED = {"MockCallOrder", "MockCoverage", "MockLibrary",
+                      "MockResource", "_mock_core"}
           errors = []
 
           def single(pattern):
@@ -93,6 +94,7 @@ jobs:
           python -m venv /tmp/install-check
           /tmp/install-check/bin/python -m pip install --quiet dist/*.whl
           /tmp/install-check/bin/python - <<'PY'
+          from MockCallOrder import MockCallOrder
           from MockCoverage import MockCoverage
           from MockLibrary import MockLibrary
           from MockResource import MockResource
@@ -111,6 +113,14 @@ jobs:
                   raise SystemExit(
                       f"::error::{library.__name__} is missing {missing}"
                   )
+          # MockCallOrder reads the call timeline out of _mock_core, so it is the
+          # other way a stale shared package would surface.
+          order_required = ("get_global_call_order", "reset_global_call_order")
+          missing = [
+              name for name in order_required if not hasattr(MockCallOrder, name)
+          ]
+          if missing:
+              raise SystemExit(f"::error::MockCallOrder is missing {missing}")
           assert MockCoverage.ROBOT_LISTENER_API_VERSION == 3
           print("Installed wheel imports and exposes the expected keywords")
           PY
