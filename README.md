@@ -39,6 +39,7 @@ pip install -r requirements-dev.txt
 - Verify keyword calls and call counts
 - Inspect and verify the arguments a mocked keyword was called with
 - Inspect the order in which mocked keywords were called
+- Inspect that order across several mock instances at once
 - Measure resource-file keyword coverage with configurable thresholds
 - Simple API with three main keywords
 
@@ -490,8 +491,79 @@ ${order}=    MockRes.Get Keyword Call Order
 Should Be Equal    ${order}    ${{ ['Init Client', 'Run Query'] }}
 ```
 
-Use this instead of wiring a `side_effect` that appends to a list, which is the
-only way to observe ordering otherwise.
+For ordering across *several* mock instances, see
+[Get Global Call Order](#get-global-call-order).
+
+### Get Global Call Order
+
+Return the mocked keywords from **every** mock instance in the order they were
+called, as a list of names. Provided by the `MockCallOrder` library, which has
+to be imported separately:
+
+```robot
+Library    MockCallOrder
+```
+
+`Get Keyword Call Order` is limited to one library instance. This keyword is for
+the case that one cannot cover: the contract is the *interleaving* of calls made
+through different instances — "raise the alarm, restart the service, then wait
+for the alarm to clear", where the alarm and the restart are mocked on two
+different resources.
+
+It is a separate library because the timeline belongs to no single mock. Keeping
+it on the instances would make every instance expose the same keyword, so a suite
+with two mocks — the only situation where a cross-instance order is interesting —
+would have to pick one instance to ask, which reads as if the answer were that
+instance's.
+
+A keyword called more than once appears once per call, and a call that raised is
+still a call, so retry sequences are visible. Keywords mocked but never called do
+not appear.
+
+The order is **not** cleared by `Reset Mocks`: resetting one instance must not
+discard another instance's history. Clear it explicitly with
+`Reset Global Call Order`, normally from the test setup.
+
+**Example:**
+```robot
+Library    MockResource     alarm.resource    AS    MockAlarm
+Library    MockResource     service.resource    AS    MockService
+Library    MockCallOrder
+
+Reset Global Call Order
+MockAlarm.Mock Keyword      Wait For Alarm      return_value=${None}
+MockService.Mock Keyword    Scale Deployment    return_value=${None}
+
+Restart With Alarm Check
+
+${order}=    Get Global Call Order
+Should Be Equal    ${order}    ${{ ['Wait For Alarm', 'Scale Deployment', 'Wait For Alarm'] }}
+```
+
+Pass `qualified=${True}` to prefix each name with the library or resource it was
+mocked on, which tells two identically named keywords apart:
+
+```robot
+${order}=    Get Global Call Order    qualified=${True}
+Should Be Equal    ${order}[0]    alarm.resource.Wait For Alarm
+```
+
+This replaces wiring a `side_effect` that appends to a shared list, which was
+previously the only way to observe cross-instance ordering — and which cannot be
+combined with a `side_effect` the test needs for its own purposes.
+
+### Reset Global Call Order
+
+Forget the call order recorded across all mock instances. Call it before the
+mocks whose order a test asserts are installed, so one test cannot see another
+test's calls.
+
+**Example:**
+```robot
+*** Settings ***
+Library    MockCallOrder
+Test Setup    Reset Global Call Order
+```
 
 ## How It Works
 

@@ -79,6 +79,52 @@ def is_keyword_mocked(source_key: str, keyword_name) -> bool:
     return (source_key, normalize_keyword_name(keyword_name)) in MOCKED_KEYWORDS
 
 
+# Every mocked call, in invocation order across *all* MockLibrary and MockResource
+# instances, as ``(target, keyword name as written)`` pairs.
+#
+# A single instance can only order the calls it mocked itself: ``attach_mock`` makes
+# the parent record its children's invocations, but a mock has exactly one parent, so
+# attaching a mock to a second, shared manager would silently stop the per-instance
+# order from recording. Appending here as each call happens is therefore the only way
+# to observe how calls to *different* instances interleaved.
+GLOBAL_CALL_TIMELINE = []
+
+
+def build_recording_mock(target, keyword_name, return_value=None, side_effect=None):
+    """Return the mock backing a keyword, recording its calls globally.
+
+    The hook is ``_mock_call``, which runs after the call has been counted and
+    before the configured behaviour is produced. Hooking there keeps every
+    ``unittest.mock`` behaviour intact - a ``side_effect`` list yielding one value
+    per call, an exception class or instance to raise, a callable whose
+    ``DEFAULT`` return falls back to ``return_value`` - none of which would
+    survive being re-implemented inside a wrapper.
+
+    Args:
+        target: The library or resource whose keyword is mocked, used to qualify
+            the keyword name when the recorded order is read back.
+        keyword_name: Keyword name as written when mocking.
+        return_value: Value the mocked keyword returns.
+        side_effect: Passed to :class:`unittest.mock.Mock` unchanged.
+
+    Returns:
+        A :class:`unittest.mock.Mock` subclass instance. It stays a Mock so the
+        hosts' install, restore and inspection paths are unaffected - in
+        particular it is not a descriptor, so assigning it to a class attribute
+        does not turn it into a bound method.
+    """
+    label = str(target)
+
+    class _RecordingMock(Mock):
+        """A Mock that notes each call on the global timeline before answering."""
+
+        def _mock_call(self, /, *args, **kwargs):
+            GLOBAL_CALL_TIMELINE.append((label, keyword_name))
+            return super()._mock_call(*args, **kwargs)
+
+    return _RecordingMock(return_value=return_value, side_effect=side_effect)
+
+
 class CallInspectionMixin:
     """Keywords for inspecting how a mocked keyword was called.
 

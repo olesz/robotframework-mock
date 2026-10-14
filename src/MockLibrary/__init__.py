@@ -4,11 +4,14 @@ import importlib.util
 import inspect
 import os
 from typing import Any, Callable
-from unittest.mock import Mock
 from robot.api.deco import keyword
 from robot.libraries.BuiltIn import BuiltIn
 
-from _mock_core import CallInspectionMixin, normalize_keyword_name
+from _mock_core import (
+    build_recording_mock,
+    CallInspectionMixin,
+    normalize_keyword_name,
+)
 
 
 def _get_library_instance(library_name_or_alias):
@@ -125,6 +128,7 @@ class MockLibrary(CallInspectionMixin):
         self._original_methods = {}
         self._mocks = {}
         self._keyword_methods = {}
+        self._target = library_name_or_alias
         self._library_instance = _get_library_instance(library_name_or_alias)
         self._custom_resolver = (
             _load_custom_resolver(custom_resolver_path)
@@ -169,7 +173,7 @@ class MockLibrary(CallInspectionMixin):
             self._original_methods[method_name] = original_method
 
         # Create Mock object with specified behavior
-        mock = Mock(return_value=return_value, side_effect=side_effect)
+        mock = build_recording_mock(self._target, keyword_name, return_value, side_effect)
         self._keyword_methods[normalize_keyword_name(keyword_name)] = method_name
         self._mocks[method_name] = mock
         self._track_call_order(keyword_name, mock)

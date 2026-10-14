@@ -2,7 +2,6 @@
 # pylint: disable=invalid-name
 import weakref
 from typing import Any, Callable
-from unittest.mock import Mock
 
 from robot.api.deco import keyword
 from robot.libraries.BuiltIn import BuiltIn
@@ -12,6 +11,7 @@ from robot.running.namespace import Namespace
 from robot.utils import split_from_equals
 
 from _mock_core import (
+    build_recording_mock,
     CallInspectionMixin,
     normalize_keyword_name,
     register_mocked_keyword,
@@ -285,7 +285,8 @@ class MockResource(CallInspectionMixin):
             keyword_runner.keyword.teardown = None
         elif key in self._original_teardowns:
             keyword_runner.keyword.teardown = self._original_teardowns.pop(key)
-        mock = Mock(return_value=return_value, side_effect=side_effect)
+        mock = build_recording_mock(self._source, keyword_name, return_value,
+                                    side_effect)
         self._mocks[key] = mock
         self._track_call_order(keyword_name, mock)
         # Tell MockCoverage this keyword's body no longer runs, so it is not
