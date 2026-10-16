@@ -38,8 +38,8 @@ jobs:
           # If any of these is missing from the distribution, importing the
           # library fails at runtime, and nothing else in CI would catch it
           # because this workflow does not run the test suites.
-          EXPECTED = {"MockCallOrder", "MockCoverage", "MockLibrary",
-                      "MockResource", "_mock_core"}
+          EXPECTED = {"LogCapture", "MockCallOrder", "MockCoverage",
+                      "MockLibrary", "MockResource", "_mock_core"}
           errors = []
 
           def single(pattern):
@@ -94,6 +94,7 @@ jobs:
           python -m venv /tmp/install-check
           /tmp/install-check/bin/python -m pip install --quiet dist/*.whl
           /tmp/install-check/bin/python - <<'PY'
+          from LogCapture import LogCapture
           from MockCallOrder import MockCallOrder
           from MockCoverage import MockCoverage
           from MockLibrary import MockLibrary
@@ -121,6 +122,22 @@ jobs:
           ]
           if missing:
               raise SystemExit(f"::error::MockCallOrder is missing {missing}")
+          # LogCapture is a listener as well as a library: without the listener
+          # hooks it imports cleanly and captures nothing at all.
+          capture_required = (
+              "captured_log_should_contain",
+              "end_test",
+              "get_captured_log_messages",
+              "log_message",
+              "start_capturing_log_messages",
+              "stop_capturing_log_messages",
+          )
+          missing = [
+              name for name in capture_required if not hasattr(LogCapture, name)
+          ]
+          if missing:
+              raise SystemExit(f"::error::LogCapture is missing {missing}")
+          assert LogCapture.ROBOT_LISTENER_API_VERSION == 2
           assert MockCoverage.ROBOT_LISTENER_API_VERSION == 3
           print("Installed wheel imports and exposes the expected keywords")
           PY

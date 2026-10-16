@@ -89,7 +89,7 @@ Watch the run under the repository's Actions tab.
 
 ```bash
 pip install --upgrade robotframework-mock
-python -c "import MockLibrary, MockResource, MockCoverage, MockCallOrder; print('ok')"
+python -c "import MockLibrary, MockResource, MockCoverage, MockCallOrder, LogCapture; print('ok')"
 ```
 
 > **Behaviour change to call out in the release notes (0.4.0 → 0.5.0)**

@@ -40,6 +40,7 @@ pip install -r requirements-dev.txt
 - Inspect and verify the arguments a mocked keyword was called with
 - Inspect the order in which mocked keywords were called
 - Inspect that order across several mock instances at once
+- Capture the messages a keyword logged, and assert on their level
 - Measure resource-file keyword coverage with configurable thresholds
 - Simple API with three main keywords
 
@@ -558,6 +559,78 @@ Forget the call order recorded across all mock instances. Call it before the
 mocks whose order a test asserts are installed, so one test cannot see another
 test's calls.
 
+## Capturing Log Messages
+
+A keyword's log output is part of its contract. A wrapper that takes a `${level}`
+argument and drops it looks identical from the outside — the message still
+appears, only at the wrong level — so a test that cannot read the log cannot
+tell the two apart. Robot writes messages to `log.html`, which is not available
+while the test runs, so the only way to see them is to listen for them.
+
+The `LogCapture` library does that, and has to be imported separately:
+
+```robot
+Library    LogCapture
+```
+
+**It raises the log level while capturing and puts it back afterwards.** Robot
+filters messages below the active log level *before* offering them to a listener,
+so at the default `INFO` a `DEBUG` message never arrives — measured: a
+listener at `INFO` sees `['INFO', 'WARN']` out of a DEBUG/INFO/WARN sequence.
+Leaving that to the caller makes "nothing was logged" and "the message was
+filtered out" indistinguishable, which is the very confusion the test is written
+to resolve.
+
+Capturing ends with the test that started it: the level is put back and the
+recording let go, so neither leaks into the next test. Robot also logs a test's
+own failure as a message, which is part of why the recording is dropped.
+
+### Start Capturing Log Messages
+
+Forget earlier messages and start recording, raising the log level to `level`
+(default `DEBUG`). Pass `level=NONE` to leave the level untouched — for a
+test asserting what a *given* log level does and does not write.
+
+### Get Captured Log Messages
+
+Return the captured messages, oldest first. Each is a dictionary with `level`,
+`message`, `timestamp` and `html`, so a test can read `${messages}[0][level]`.
+
+Optional `level` and `pattern` arguments filter the result: `level` matches
+exactly and case-insensitively, `pattern` is a case-sensitive glob, so a partial
+match needs its own wildcards.
+
+**Example:**
+```robot
+Library    LogCapture
+
+Start Capturing Log Messages
+Rotate Credentials
+${warnings}=    Get Captured Log Messages    level=WARN
+Length Should Be    ${warnings}    1
+Should Be Equal     ${warnings}[0][message]    credentials rotated
+```
+
+### Captured Log Should Contain
+
+Fail unless a captured message matches the given glob, optionally requiring a
+`level` and an exact `count` of matches. The failure lists every captured
+message, because "the log line is missing" and "the log line is there at another
+level" need telling apart and a bare assertion error cannot do that.
+
+**Example:**
+```robot
+Start Capturing Log Messages
+Refresh Data
+Captured Log Should Contain    *retrying*    level=WARN    count=3
+```
+
+### Stop Capturing Log Messages
+
+Stop recording, put the log level back, and return what was captured. Needed only
+when a test logs something afterwards that it does not want recorded; otherwise
+capturing ends with the test.
+
 **Example:**
 ```robot
 *** Settings ***
@@ -662,6 +735,7 @@ MockCoverage measures resource keyword coverage as a listener:
 ## Notes
 
 - Both libraries use `ROBOT_LIBRARY_SCOPE = 'GLOBAL'` to maintain state across test cases
+- `LogCapture` is a library and its own listener, which is how it sees log messages
 - Built on Python's unittest.mock.Mock for robust mocking capabilities
 - MockLibrary supports any Robot Framework library, including BuiltIn
 - MockResource works with resource files by patching the keyword execution pipeline
